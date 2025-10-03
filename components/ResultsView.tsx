@@ -31,11 +31,20 @@ const INITIAL_COLUMN_VISIBILITY: Record<ColumnKey, boolean> = {
 };
 
 
-const StatBadge: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
-  <div className={`p-4 rounded-lg shadow-sm text-center ${color}`}>
+const StatBadge: React.FC<{ 
+    label: string; 
+    value: number; 
+    color: string; 
+    isActive: boolean; 
+    onClick: () => void 
+}> = ({ label, value, color, isActive, onClick }) => (
+  <button 
+    onClick={onClick}
+    className={`p-4 rounded-lg shadow-sm text-center w-full transition-all duration-200 ${color} ${isActive ? 'ring-4 ring-offset-2 ring-indigo-500 dark:ring-offset-slate-900' : 'hover:scale-105 transform'}`}
+  >
     <p className="text-2xl font-bold">{value}</p>
     <p className="text-sm font-medium uppercase">{label}</p>
-  </div>
+  </button>
 );
 
 const statusConfig = {
@@ -73,6 +82,14 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
       return acc;
     }, {} as Record<ResultStatus, number>);
   }, [results]);
+  
+  const badgeConfigs: { label: string; status: ResultStatus | 'ALL'; value: number; color: string }[] = [
+    { label: `Totale Codici`, status: 'ALL', value: results.length, color: "bg-green-100 text-green-900 dark:bg-green-800/40 dark:text-green-100" },
+    { label: ResultStatus.ABSENT_IN_ORIGINAL, status: ResultStatus.ABSENT_IN_ORIGINAL, value: stats[ResultStatus.ABSENT_IN_ORIGINAL] || 0, color: "bg-orange-100 text-orange-900 dark:bg-orange-800/40 dark:text-orange-100" },
+    { label: ResultStatus.ABSENT, status: ResultStatus.ABSENT, value: stats[ResultStatus.ABSENT] || 0, color: "bg-red-100 text-red-900 dark:bg-red-800/40 dark:text-red-100" },
+    { label: ResultStatus.QUANTITY_DIFFERENT, status: ResultStatus.QUANTITY_DIFFERENT, value: stats[ResultStatus.QUANTITY_DIFFERENT] || 0, color: "bg-yellow-100 text-yellow-900 dark:bg-yellow-800/40 dark:text-yellow-100" },
+    { label: ResultStatus.REVISION_DIFFERENT, status: ResultStatus.REVISION_DIFFERENT, value: stats[ResultStatus.REVISION_DIFFERENT] || 0, color: "bg-blue-100 text-blue-900 dark:bg-blue-800/40 dark:text-blue-100" },
+  ];
 
   const filteredResults = useMemo(() => {
     let tempResults = results;
@@ -192,34 +209,20 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
       )}
       
       <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-        <StatBadge label={`Totale Codici`} value={results.length} color="bg-green-100 text-green-800 dark:bg-green-900/50 dark:text-green-300" />
-        <StatBadge label={ResultStatus.ABSENT_IN_ORIGINAL} value={stats[ResultStatus.ABSENT_IN_ORIGINAL] || 0} color="bg-orange-100 text-orange-800 dark:bg-orange-900/50 dark:text-orange-300" />
-        <StatBadge label={ResultStatus.ABSENT} value={stats[ResultStatus.ABSENT] || 0} color="bg-red-100 text-red-800 dark:bg-red-900/50 dark:text-red-300" />
-        <StatBadge label={ResultStatus.QUANTITY_DIFFERENT} value={stats[ResultStatus.QUANTITY_DIFFERENT] || 0} color="bg-yellow-100 text-yellow-800 dark:bg-yellow-900/50 dark:text-yellow-300" />
-        <StatBadge label={ResultStatus.REVISION_DIFFERENT} value={stats[ResultStatus.REVISION_DIFFERENT] || 0} color="bg-blue-100 text-blue-800 dark:bg-blue-900/50 dark:text-blue-300" />
+        {badgeConfigs.map(config => (
+            <StatBadge
+                key={config.label}
+                label={config.label}
+                value={config.value}
+                color={config.color}
+                isActive={filter === config.status}
+                onClick={() => setFilter(config.status)}
+            />
+        ))}
       </div>
 
       <div className="bg-white dark:bg-slate-800 p-4 rounded-xl shadow-md border border-slate-200 dark:border-slate-700">
-        {/* Row 1: Status Filters */}
-        <div className="flex flex-wrap items-center gap-x-6 gap-y-2 mb-4">
-            <div className="flex items-center space-x-2">
-                <span className="font-semibold text-slate-700 dark:text-slate-300">Filtra per esito:</span>
-                <div className="flex flex-wrap gap-2">
-                    <button onClick={() => setFilter('ALL')} className={`px-3 py-1 text-sm rounded-full ${filter === 'ALL' ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}`}>Tutti</button>
-                    {Object.values(ResultStatus)
-                      .filter(status => status !== ResultStatus.QUANTITY_EQUAL)
-                      .map(status => (
-                        (stats[status] > 0) && (
-                            <button key={status} onClick={() => setFilter(status)} className={`px-3 py-1 text-sm rounded-full ${filter === status ? 'bg-indigo-600 text-white' : 'bg-slate-200 text-slate-700 dark:bg-slate-700 dark:text-slate-200'}`}>
-                                {status}
-                            </button>
-                        )
-                    ))}
-                </div>
-            </div>
-        </div>
-        
-        {/* Row 2: Actions and Search */}
+        {/* Actions and Search */}
         <div className="flex flex-wrap items-center justify-between gap-4">
             {/* Left Side: Action Buttons */}
             <div className="flex flex-wrap items-center gap-2">
