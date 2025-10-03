@@ -1,4 +1,3 @@
-
 import React, { useState, useMemo, useCallback } from 'react';
 import type { ParsedFile, Mappings, Mapping, ComparisonResult, MappingProfile, TransformationRule, RowData } from './types';
 import { AppStep } from './types';
@@ -167,6 +166,10 @@ const App: React.FC = () => {
   const [skipRowsOriginal, setSkipRowsOriginal] = useState(0);
   const [skipRowsPartial, setSkipRowsPartial] = useState(0);
   const [aggregateCodes, setAggregateCodes] = useState(false);
+  const [comparisonOptions, setComparisonOptions] = useState({
+    ignoreQuantity: false,
+    ignoreRevision: false,
+  });
 
   const [mappings, setMappings] = useState<Mappings>(INITIAL_MAPPINGS);
   const [results, setResults] = useState<ComparisonResult[] | null>(null);
@@ -239,7 +242,8 @@ const App: React.FC = () => {
     currentPartialData: ParsedFile,
     currentMappings: Mappings,
     currentRules: TransformationRule[] | null,
-    aggregate: boolean
+    aggregate: boolean,
+    options: { ignoreQuantity: boolean, ignoreRevision: boolean }
   ): ComparisonResult[] => {
       let processedOriginalData = currentOriginalData;
       let processedPartialData = currentPartialData;
@@ -261,7 +265,7 @@ const App: React.FC = () => {
           );
       }
 
-      return compareData(processedOriginalData, processedPartialData, currentMappings, aggregate);
+      return compareData(processedOriginalData, processedPartialData, currentMappings, aggregate, options);
   };
 
   const runComparison = useCallback((aggregate: boolean) => {
@@ -273,7 +277,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setTimeout(() => { // Simulate async for better UX
         try {
-            const comparisonResults = performComparison(originalData, partialData, mappings, rules, aggregate);
+            const comparisonResults = performComparison(originalData, partialData, mappings, rules, aggregate, comparisonOptions);
             setResults(comparisonResults);
             setAggregateCodes(aggregate);
             setStep(AppStep.RESULTS);
@@ -283,7 +287,27 @@ const App: React.FC = () => {
             setIsLoading(false);
         }
     }, 50);
-  }, [isMappingComplete, originalData, partialData, mappings, rules]);
+  }, [isMappingComplete, originalData, partialData, mappings, rules, comparisonOptions]);
+
+  const handleComparisonOptionsChange = (newOption: { ignoreQuantity?: boolean; ignoreRevision?: boolean }) => {
+    const updatedOptions = { ...comparisonOptions, ...newOption };
+    setComparisonOptions(updatedOptions);
+
+    if (!originalData || !partialData || !results) return;
+
+    setIsLoading(true);
+    setError(null);
+    setTimeout(() => {
+      try {
+        const comparisonResults = performComparison(originalData, partialData, mappings, rules, aggregateCodes, updatedOptions);
+        setResults(comparisonResults);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+      } finally {
+        setIsLoading(false);
+      }
+    }, 50);
+  };
 
   const handleApplyRulesFile = useCallback(async (file: File) => {
     if (!originalData || !partialData || !isMappingComplete) return;
@@ -296,14 +320,14 @@ const App: React.FC = () => {
         setRulesFile(file);
         setRulesFileDisplayName(file.name);
 
-        const comparisonResults = performComparison(originalData, partialData, mappings, parsedRules, aggregateCodes);
+        const comparisonResults = performComparison(originalData, partialData, mappings, parsedRules, aggregateCodes, comparisonOptions);
         setResults(comparisonResults);
     } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
     } finally {
         setIsLoading(false);
     }
-  }, [originalData, partialData, mappings, aggregateCodes, isMappingComplete]);
+  }, [originalData, partialData, mappings, aggregateCodes, isMappingComplete, comparisonOptions]);
 
   const handleSaveRules = useCallback((updatedRules: TransformationRule[]) => {
     if (!originalData || !partialData) return;
@@ -320,7 +344,7 @@ const App: React.FC = () => {
     });
 
     try {
-        const comparisonResults = performComparison(originalData, partialData, mappings, updatedRules, aggregateCodes);
+        const comparisonResults = performComparison(originalData, partialData, mappings, updatedRules, aggregateCodes, comparisonOptions);
         setResults(comparisonResults);
     } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
@@ -328,7 +352,7 @@ const App: React.FC = () => {
         setIsLoading(false);
         setIsRuleEditorOpen(false);
     }
-  }, [originalData, partialData, mappings, aggregateCodes]);
+  }, [originalData, partialData, mappings, aggregateCodes, comparisonOptions]);
 
   const handleRemoveRules = useCallback(() => {
     if (!originalData || !partialData) return;
@@ -340,14 +364,14 @@ const App: React.FC = () => {
     setRulesFileDisplayName(null);
 
     try {
-        const comparisonResults = performComparison(originalData, partialData, mappings, null, aggregateCodes);
+        const comparisonResults = performComparison(originalData, partialData, mappings, null, aggregateCodes, comparisonOptions);
         setResults(comparisonResults);
     } catch (err) {
         setError(err instanceof Error ? err.message : String(err));
     } finally {
         setIsLoading(false);
     }
-  }, [originalData, partialData, mappings, aggregateCodes]);
+  }, [originalData, partialData, mappings, aggregateCodes, comparisonOptions]);
 
   const handleCompare = () => runComparison(aggregateCodes);
   const handleToggleAggregation = () => runComparison(!aggregateCodes);
@@ -506,6 +530,8 @@ const App: React.FC = () => {
                     onRemoveRules={handleRemoveRules}
                     rulesFileName={rulesFileDisplayName}
                     onEditRules={() => setIsRuleEditorOpen(true)}
+                    comparisonOptions={comparisonOptions}
+                    onComparisonOptionsChange={handleComparisonOptionsChange}
                  />
                  {rules !== null && (
                     <RuleEditorModal

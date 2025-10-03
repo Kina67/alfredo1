@@ -199,7 +199,8 @@ export const compareData = (
   originalData: ParsedFile,
   partialData: ParsedFile,
   mappings: Mappings,
-  aggregate: boolean
+  aggregate: boolean,
+  options: { ignoreQuantity: boolean; ignoreRevision: boolean }
 ): ComparisonResult[] => {
   const { original: originalMap, partial: partialMap } = mappings;
 
@@ -207,7 +208,12 @@ export const compareData = (
     throw new Error("Mappatura colonne obbligatorie mancante.");
   }
 
-  const getKey = (code: any, revision: any): string => `${String(code)}::${String(revision ?? '')}`;
+  const getKey = (code: any, revision: any): string => {
+    if (options.ignoreRevision) {
+      return String(code);
+    }
+    return `${String(code)}::${String(revision ?? '')}`;
+  };
 
   // 1. Build maps from partial data for efficient lookup.
   const partialMapData = new Map<string, { quantity: number; description: string | null; revision: string | null }>();
@@ -220,7 +226,7 @@ export const compareData = (
     const revision = partialMap.revision ? String(row[partialMap.revision]) : null;
 
     if (code && quantity !== null) {
-      // Aggregate by full key (code + revision)
+      // Aggregate by full key (code + revision OR just code)
       const key = getKey(code, revision);
       if (partialMapData.has(key)) {
         const existing = partialMapData.get(key)!;
@@ -229,16 +235,18 @@ export const compareData = (
         partialMapData.set(key, { quantity, description, revision });
       }
 
-      // Store all revisions for a given code, aggregated
-      if (!partialCodeToRevisions.has(code)) {
-        partialCodeToRevisions.set(code, []);
-      }
-      const revisionList = partialCodeToRevisions.get(code)!;
-      const existingRevisionEntry = revisionList.find(r => r.revision === revision);
-      if (existingRevisionEntry) {
-          existingRevisionEntry.quantity += quantity;
-      } else {
-          revisionList.push({ revision, description, quantity });
+      // Store all revisions for a given code, aggregated (only needed if we are checking revisions)
+      if (!options.ignoreRevision) {
+          if (!partialCodeToRevisions.has(code)) {
+            partialCodeToRevisions.set(code, []);
+          }
+          const revisionList = partialCodeToRevisions.get(code)!;
+          const existingRevisionEntry = revisionList.find(r => r.revision === revision);
+          if (existingRevisionEntry) {
+              existingRevisionEntry.quantity += quantity;
+          } else {
+              revisionList.push({ revision, description, quantity });
+          }
       }
     }
   }
@@ -302,12 +310,12 @@ export const compareData = (
     const exactMatch = partialMapData.get(key);
 
     if (exactMatch) {
-      // Exact match on code and revision
+      // Exact match on code and revision (or just code if revision is ignored)
       processedPartialKeys.add(key);
       const { quantity: partialQuantity, description: partialDescription, revision: partialRevision } = exactMatch;
       
       const quantityDiff = Math.abs(originalQuantity - partialQuantity);
-      const status = (quantityDiff < 1e-6) ? ResultStatus.QUANTITY_EQUAL : ResultStatus.QUANTITY_DIFFERENT;
+      const status = (options.ignoreQuantity || quantityDiff < 1e-6) ? ResultStatus.QUANTITY_EQUAL : ResultStatus.QUANTITY_DIFFERENT;
 
       resultsFromOriginal.push({
         originalCode, originalQuantity, originalDescription, originalRevision,
@@ -315,8 +323,9 @@ export const compareData = (
         status,
       });
     } else {
-      // No exact match, check for same code with different revision
-      const otherRevisions = partialCodeToRevisions.get(originalCode);
+      // No exact match, check for same code with different revision (only if we are NOT ignoring revisions)
+      const otherRevisions = !options.ignoreRevision ? partialCodeToRevisions.get(originalCode) : undefined;
+      
       if (otherRevisions && otherRevisions.length > 0) {
         // Revision mismatch found
         const firstOtherRevision = otherRevisions[0];

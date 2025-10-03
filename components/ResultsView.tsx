@@ -14,6 +14,8 @@ interface ResultsViewProps {
   onRemoveRules: () => void;
   rulesFileName?: string | null;
   onEditRules: () => void;
+  comparisonOptions: { ignoreQuantity: boolean; ignoreRevision: boolean };
+  onComparisonOptionsChange: (options: { ignoreQuantity?: boolean; ignoreRevision?: boolean }) => void;
 }
 
 type ColumnKey = 'status' | 'originalCode' | 'originalQuantity' | 'originalDescription' | 'originalRevision' | 'partialCode' | 'partialQuantity' | 'partialDescription' | 'partialRevision';
@@ -56,7 +58,7 @@ const statusConfig = {
     [ResultStatus.INVALID_QUANTITY]: { icon: <ExclamationCircleIcon className="w-5 h-5 text-purple-500" />, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300' },
 };
 
-const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, isAggregated, originalFileName, partialFileName, onApplyRulesFile, onRemoveRules, rulesFileName, onEditRules }) => {
+const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, isAggregated, originalFileName, partialFileName, onApplyRulesFile, onRemoveRules, rulesFileName, onEditRules, comparisonOptions, onComparisonOptionsChange }) => {
   const [filter, setFilter] = useState<ResultStatus | 'ALL'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [descriptionSearchTerm, setDescriptionSearchTerm] = useState('');
@@ -277,6 +279,30 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
                 />
             </div>
         </div>
+        
+          <div className="border-t border-slate-200 dark:border-slate-700 mt-4 pt-3 flex items-center gap-6 text-sm">
+            <span className="font-semibold text-slate-700 dark:text-slate-200 shrink-0">Opzioni Confronto:</span>
+            <div className="flex items-center gap-x-6 gap-y-2 flex-wrap">
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={comparisonOptions.ignoreQuantity}
+                  onChange={(e) => onComparisonOptionsChange({ ignoreQuantity: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 dark:border-slate-500 text-indigo-600 focus:ring-indigo-500 bg-transparent"
+                />
+                <span className="ml-2 text-slate-700 dark:text-slate-300">Ignora Quantità</span>
+              </label>
+              <label className="flex items-center cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={comparisonOptions.ignoreRevision}
+                  onChange={(e) => onComparisonOptionsChange({ ignoreRevision: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 dark:border-slate-500 text-indigo-600 focus:ring-indigo-500 bg-transparent"
+                />
+                <span className="ml-2 text-slate-700 dark:text-slate-300">Ignora Revisioni</span>
+              </label>
+            </div>
+          </div>
 
           {rulesFileName && (
             <div className="border-t border-slate-200 dark:border-slate-700 mt-4 pt-3 flex items-center justify-between gap-4 text-sm text-slate-600 dark:text-slate-300">
