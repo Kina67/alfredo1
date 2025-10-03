@@ -130,6 +130,36 @@ const App: React.FC = () => {
     return required.every(f => mappings.original[f]) && required.every(f => mappings.partial[f]);
   }, [mappings]);
 
+  const performComparison = (
+    currentOriginalData: ParsedFile, 
+    currentPartialData: ParsedFile,
+    currentMappings: Mappings,
+    currentRules: TransformationRule[] | null,
+    aggregate: boolean
+  ): ComparisonResult[] => {
+      let processedOriginalData = currentOriginalData;
+      let processedPartialData = currentPartialData;
+
+      if (currentRules && currentRules.length > 0) {
+          processedOriginalData = applyTransformationRules(
+              currentOriginalData,
+              currentRules,
+              currentMappings.original.code!,
+              currentMappings.original.quantity!,
+              currentMappings.original.description
+          );
+          processedPartialData = applyTransformationRules(
+              currentPartialData,
+              currentRules,
+              currentMappings.partial.code!,
+              currentMappings.partial.quantity!,
+              currentMappings.partial.description
+          );
+      }
+
+      return compareData(processedOriginalData, processedPartialData, currentMappings, aggregate);
+  };
+
   const runComparison = useCallback((aggregate: boolean) => {
      if (!isMappingComplete || !originalData || !partialData) {
       setError("Per favore, mappa tutte le colonne obbligatorie (*) prima di procedere.");
@@ -139,28 +169,7 @@ const App: React.FC = () => {
     setIsLoading(true);
     setTimeout(() => { // Simulate async for better UX
         try {
-            let processedOriginalData = originalData;
-            let processedPartialData = partialData;
-
-            if (rules && rules.length > 0) {
-                processedOriginalData = applyTransformationRules(
-                    originalData,
-                    rules,
-                    mappings.original.code!,
-                    mappings.original.quantity!,
-                    mappings.original.description
-                );
-                processedPartialData = applyTransformationRules(
-                    partialData,
-                    rules,
-                    mappings.partial.code!,
-                    mappings.partial.quantity!,
-                    mappings.partial.description
-                );
-            }
-
-            const comparisonResults = compareData(processedOriginalData, processedPartialData, mappings, aggregate);
-            
+            const comparisonResults = performComparison(originalData, partialData, mappings, rules, aggregate);
             setResults(comparisonResults);
             setAggregateCodes(aggregate);
             setStep(AppStep.RESULTS);
@@ -171,6 +180,43 @@ const App: React.FC = () => {
         }
     }, 50);
   }, [isMappingComplete, originalData, partialData, mappings, rules]);
+
+  const handleApplyRulesFile = useCallback(async (file: File) => {
+    if (!originalData || !partialData || !isMappingComplete) return;
+    
+    setIsLoading(true);
+    setError(null);
+    try {
+        const parsedRules = await parseRulesFile(file);
+        setRules(parsedRules);
+        setRulesFile(file);
+
+        const comparisonResults = performComparison(originalData, partialData, mappings, parsedRules, aggregateCodes);
+        setResults(comparisonResults);
+    } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+    } finally {
+        setIsLoading(false);
+    }
+  }, [originalData, partialData, mappings, aggregateCodes, isMappingComplete]);
+
+  const handleRemoveRules = useCallback(() => {
+    if (!originalData || !partialData) return;
+    
+    setIsLoading(true);
+    setError(null);
+    setRules(null);
+    setRulesFile(null);
+
+    try {
+        const comparisonResults = performComparison(originalData, partialData, mappings, null, aggregateCodes);
+        setResults(comparisonResults);
+    } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+    } finally {
+        setIsLoading(false);
+    }
+  }, [originalData, partialData, mappings, aggregateCodes]);
 
   const handleCompare = () => runComparison(aggregateCodes);
   const handleToggleAggregation = () => runComparison(!aggregateCodes);
@@ -317,6 +363,9 @@ const App: React.FC = () => {
                     isAggregated={aggregateCodes}
                     originalFileName={originalFile?.name}
                     partialFileName={partialFile?.name}
+                    onApplyRulesFile={handleApplyRulesFile}
+                    onRemoveRules={handleRemoveRules}
+                    rulesFileName={rulesFile?.name}
                  />
                  <div className="mt-8 text-center">
                     <button onClick={handleReset} className="px-6 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 transition">
