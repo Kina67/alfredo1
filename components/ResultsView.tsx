@@ -3,7 +3,7 @@ import React, { useState, useMemo } from 'react';
 import type { ComparisonResult } from '../types';
 import { ResultStatus } from '../types';
 import { exportToCsv, exportToExcel } from '../services/exporter';
-import { CheckCircleIcon, ExclamationCircleIcon, XCircleIcon, DownloadIcon, UploadIcon, FileIcon } from './icons';
+import { CheckCircleIcon, ExclamationCircleIcon, XCircleIcon, DownloadIcon, UploadIcon, FileIcon, EditIcon } from './icons';
 
 interface ResultsViewProps {
   results: ComparisonResult[];
@@ -13,7 +13,8 @@ interface ResultsViewProps {
   partialFileName?: string;
   onApplyRulesFile: (file: File) => void;
   onRemoveRules: () => void;
-  rulesFileName?: string;
+  rulesFileName?: string | null;
+  onEditRules: () => void;
 }
 
 const StatBadge: React.FC<{ label: string; value: number; color: string }> = ({ label, value, color }) => (
@@ -31,7 +32,7 @@ const statusConfig = {
     [ResultStatus.INVALID_QUANTITY]: { icon: <ExclamationCircleIcon className="w-5 h-5 text-purple-500" />, color: 'bg-purple-100 text-purple-800' },
 };
 
-const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, isAggregated, originalFileName, partialFileName, onApplyRulesFile, onRemoveRules, rulesFileName }) => {
+const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, isAggregated, originalFileName, partialFileName, onApplyRulesFile, onRemoveRules, rulesFileName, onEditRules }) => {
   const [filter, setFilter] = useState<ResultStatus | 'ALL'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [descriptionSearchTerm, setDescriptionSearchTerm] = useState('');
@@ -128,9 +129,9 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
                         <DownloadIcon className="w-5 h-5" />
                         <span>Esporta CSV</span>
                     </button>
-                    <label htmlFor="rules-file-upload" className="cursor-pointer inline-flex items-center space-x-2 bg-slate-600 text-white px-4 py-2 rounded-md hover:bg-slate-700 transition">
+                    <label htmlFor="rules-file-upload" className="cursor-pointer inline-flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
                         <UploadIcon className="w-5 h-5" />
-                        <span>{rulesFileName ? 'Aggiorna Regole' : 'Applica Regole'}</span>
+                        <span>{rulesFileName ? 'Sostituisci Regole' : 'Applica Regole'}</span>
                     </label>
                     <input
                         id="rules-file-upload"
@@ -147,19 +148,29 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
               </div>
           </div>
           {rulesFileName && (
-            <div className="border-t border-slate-200 mt-4 pt-3 flex items-center justify-between gap-2 text-sm text-slate-600">
+            <div className="border-t border-slate-200 mt-4 pt-3 flex items-center justify-between gap-4 text-sm text-slate-600">
                 <div className="flex items-center gap-2">
                     <FileIcon className="w-5 h-5 text-slate-500" />
                     <span>Regole applicate: <strong>{rulesFileName}</strong></span>
                 </div>
-                <button
-                  onClick={onRemoveRules}
-                  className="p-1 rounded-full hover:bg-red-100 transition-colors"
-                  aria-label="Rimuovi regole"
-                  title="Rimuovi regole"
-                >
-                  <XCircleIcon className="w-5 h-5 text-red-500 hover:text-red-700" />
-                </button>
+                <div className="flex items-center gap-2">
+                    <button
+                      onClick={onEditRules}
+                      className="p-1 rounded-full hover:bg-slate-200 transition-colors"
+                      aria-label="Modifica regole"
+                      title="Modifica regole"
+                    >
+                      <EditIcon className="w-5 h-5 text-slate-600 hover:text-slate-800" />
+                    </button>
+                    <button
+                      onClick={onRemoveRules}
+                      className="p-1 rounded-full hover:bg-red-100 transition-colors"
+                      aria-label="Rimuovi regole"
+                      title="Rimuovi regole"
+                    >
+                      <XCircleIcon className="w-5 h-5 text-red-500 hover:text-red-700" />
+                    </button>
+                </div>
             </div>
           )}
       </div>
