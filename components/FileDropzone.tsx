@@ -6,9 +6,10 @@ interface FileDropzoneProps {
   onFileSelect: (file: File) => void;
   title: string;
   acceptedTypes: string;
+  size?: 'large' | 'compact';
 }
 
-const FileDropzone: React.FC<FileDropzoneProps> = ({ onFileSelect, title, acceptedTypes }) => {
+const FileDropzone: React.FC<FileDropzoneProps> = ({ onFileSelect, title, acceptedTypes, size = 'large' }) => {
   const [dragOver, setDragOver] = useState(false);
   const [file, setFile] = useState<File | null>(null);
 
@@ -46,14 +47,17 @@ const FileDropzone: React.FC<FileDropzoneProps> = ({ onFileSelect, title, accept
     }
   };
 
+  const isCompact = size === 'compact';
+
   return (
     <div className="w-full">
-      <h3 className="text-lg font-semibold text-slate-700 mb-2">{title}</h3>
+      <h3 className={`font-semibold text-slate-700 mb-2 ${isCompact ? 'text-base' : 'text-lg'}`}>{title}</h3>
       <div
         onDrop={onDrop}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
-        className={`relative flex flex-col items-center justify-center w-full h-48 border-2 border-dashed rounded-lg cursor-pointer transition-colors duration-200
+        className={`relative flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg cursor-pointer transition-colors duration-200
+          ${isCompact ? 'h-32' : 'h-48'}
           ${dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 bg-white hover:bg-slate-50'}
           ${file ? 'border-green-500 bg-green-50' : ''}`}
       >
@@ -64,16 +68,16 @@ const FileDropzone: React.FC<FileDropzoneProps> = ({ onFileSelect, title, accept
           accept={acceptedTypes}
         />
         {file ? (
-          <div className="text-center text-green-700">
-            <FileIcon className="w-12 h-12 mx-auto" />
-            <p className="mt-2 font-semibold">{file.name}</p>
-            <p className="text-sm">({(file.size / 1024).toFixed(2)} KB)</p>
+          <div className={`text-center text-green-700 ${isCompact ? 'p-2' : ''}`}>
+            <FileIcon className={`mx-auto ${isCompact ? 'w-8 h-8' : 'w-12 h-12'}`} />
+            <p className={`mt-2 font-semibold ${isCompact ? 'text-sm' : ''}`}>{file.name}</p>
+            <p className="text-xs">({(file.size / 1024).toFixed(2)} KB)</p>
           </div>
         ) : (
-          <div className="text-center text-slate-500">
-            <UploadIcon className="w-12 h-12 mx-auto" />
-            <p className="mt-2 font-semibold">Trascina il file qui</p>
-            <p className="text-sm">o clicca per selezionare</p>
+          <div className={`text-center text-slate-500 ${isCompact ? 'p-2' : ''}`}>
+            <UploadIcon className={`mx-auto ${isCompact ? 'w-8 h-8' : 'w-12 h-12'}`} />
+            <p className={`mt-2 font-semibold ${isCompact ? 'text-sm' : ''}`}>Trascina il file qui</p>
+            <p className="text-xs">o clicca per selezionare</p>
           </div>
         )}
       </div>
