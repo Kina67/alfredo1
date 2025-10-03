@@ -2,6 +2,13 @@ import React from 'react';
 import type { ParsedFile, Mapping } from '../types';
 import { MAPPABLE_FIELDS } from '../constants';
 
+// Define color classes for each mappable field
+const fieldColorClasses: Record<keyof Mapping, { th: string; td: string }> = {
+  code: { th: 'bg-indigo-100 text-indigo-800', td: 'bg-indigo-50' },
+  quantity: { th: 'bg-sky-100 text-sky-800', td: 'bg-sky-50' },
+  description: { th: 'bg-teal-100 text-teal-800', td: 'bg-teal-50' },
+};
+
 interface MappingTableProps {
   fileData: ParsedFile;
   mapping: Mapping;
@@ -12,8 +19,16 @@ interface MappingTableProps {
 
 const MappingTable: React.FC<MappingTableProps> = ({ fileData, mapping, onMappingChange, skipRows, onSkipRowsChange }) => {
   const previewData = fileData.data.slice(0, 5);
-  // Get an array of headers that are currently used in the mapping
-  const mappedHeaders = Object.values(mapping).filter(Boolean);
+  
+  // Create a reverse map from header name to field ID for easy color lookup
+  const headerToFieldMap = (Object.keys(mapping) as Array<keyof Mapping>).reduce((acc, field) => {
+    const header = mapping[field];
+    if (header) {
+      acc[header] = field;
+    }
+    return acc;
+  }, {} as Record<string, keyof Mapping>);
+
 
   return (
     <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200 flex flex-col h-full">
@@ -67,28 +82,36 @@ const MappingTable: React.FC<MappingTableProps> = ({ fileData, mapping, onMappin
         <table className="min-w-full divide-y divide-slate-200 border border-slate-200 rounded-lg">
           <thead className="bg-slate-50">
             <tr>
-              {fileData.headers.map(header => (
-                <th 
-                  key={header} 
-                  scope="col" 
-                  className={`px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider transition-colors duration-200 ${mappedHeaders.includes(header) ? 'bg-indigo-100 text-indigo-800' : ''}`}
-                >
-                  {header}
-                </th>
-              ))}
+              {fileData.headers.map(header => {
+                const field = headerToFieldMap[header];
+                const colorClass = field ? fieldColorClasses[field]?.th || '' : '';
+                return (
+                    <th 
+                    key={header} 
+                    scope="col" 
+                    className={`px-4 py-3 text-left text-xs font-semibold text-slate-600 uppercase tracking-wider transition-colors duration-200 ${colorClass}`}
+                    >
+                    {header}
+                    </th>
+                );
+              })}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
             {previewData.map((row, rowIndex) => (
               <tr key={rowIndex}>
-                {fileData.headers.map(header => (
-                  <td 
-                    key={`${rowIndex}-${header}`} 
-                    className={`px-4 py-2 whitespace-nowrap text-sm text-slate-700 transition-colors duration-200 ${mappedHeaders.includes(header) ? 'bg-indigo-50' : ''}`}
-                  >
-                    {String(row[header])}
-                  </td>
-                ))}
+                {fileData.headers.map(header => {
+                  const field = headerToFieldMap[header];
+                  const colorClass = field ? fieldColorClasses[field]?.td || '' : '';
+                  return (
+                    <td 
+                        key={`${rowIndex}-${header}`} 
+                        className={`px-4 py-2 whitespace-nowrap text-sm text-slate-700 transition-colors duration-200 ${colorClass}`}
+                    >
+                        {String(row[header])}
+                    </td>
+                  );
+                })}
               </tr>
             ))}
              {previewData.length === 0 && (
