@@ -35,41 +35,48 @@ export const exportToExcel = (
   stats: Record<ResultStatus, number>,
   filename: string = 'confronto_bom.xlsx'
 ) => {
-  const sourceFileLabel = 'Cliente';
-
   // 1. Dati per il foglio di Riepilogo
   const summaryData = [
     { Statistica: `Totale Codici`, Valore: results.length },
     ...Object.entries(stats).map(([status, value]) => ({ Statistica: status, Valore: value })),
   ];
-
-  // 2. Dati filtrati per gli altri fogli
-  const absentInOriginalResults = results.filter(r => r.status === EResultStatus.ABSENT_IN_ORIGINAL);
-  const absentResults = results.filter(r => r.status === EResultStatus.ABSENT);
-  const diffResults = results.filter(r => r.status === EResultStatus.QUANTITY_DIFFERENT);
-  
-  // 3. Formattazione dei dati per l'export
-  const formattedTotal = formatResultsForExport(results);
-  const formattedAbsentInOriginal = formatResultsForExport(absentInOriginalResults);
-  const formattedAbsent = formatResultsForExport(absentResults);
-  const formattedDiff = formatResultsForExport(diffResults);
-
-  // 4. Creazione dei fogli di lavoro
   const riepilogoWS = XLSX.utils.json_to_sheet(summaryData);
-  const totalWS = XLSX.utils.json_to_sheet(formattedTotal);
-  const absentInOriginalWS = XLSX.utils.json_to_sheet(formattedAbsentInOriginal);
-  const absentWS = XLSX.utils.json_to_sheet(formattedAbsent);
-  const diffWS = XLSX.utils.json_to_sheet(formattedDiff);
 
-  // 5. Creazione del workbook e aggiunta dei fogli
+  // 2. Dati per il foglio con tutti i risultati
+  const formattedTotal = formatResultsForExport(results);
+  const totalWS = XLSX.utils.json_to_sheet(formattedTotal);
+
+  // 3. Creazione del workbook e aggiunta dei fogli principali
   const workbook = XLSX.utils.book_new();
   XLSX.utils.book_append_sheet(workbook, riepilogoWS, 'Riepilogo');
-  XLSX.utils.book_append_sheet(workbook, totalWS, `Totale Risultati`);
-  XLSX.utils.book_append_sheet(workbook, absentInOriginalWS, EResultStatus.ABSENT_IN_ORIGINAL);
-  XLSX.utils.book_append_sheet(workbook, absentWS, EResultStatus.ABSENT);
-  XLSX.utils.book_append_sheet(workbook, diffWS, EResultStatus.QUANTITY_DIFFERENT);
+  XLSX.utils.book_append_sheet(workbook, totalWS, 'Totale Risultati');
 
-  // 6. Scrittura del file
+  // 4. Dati e fogli per le singole categorie, aggiunti solo se non vuoti
+  const categorySheets = [
+    {
+      status: EResultStatus.ABSENT_IN_ORIGINAL,
+      sheetName: 'Assenti_Cliente',
+    },
+    {
+      status: EResultStatus.ABSENT,
+      sheetName: 'Assenti_Gestionale',
+    },
+    {
+      status: EResultStatus.QUANTITY_DIFFERENT,
+      sheetName: 'Qta_Diverse',
+    },
+  ];
+
+  for (const { status, sheetName } of categorySheets) {
+    const filteredData = results.filter(r => r.status === status);
+    if (filteredData.length > 0) {
+      const formattedData = formatResultsForExport(filteredData);
+      const worksheet = XLSX.utils.json_to_sheet(formattedData);
+      XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    }
+  }
+
+  // 5. Scrittura del file
   XLSX.writeFile(workbook, filename);
 };
 

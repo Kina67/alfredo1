@@ -71,7 +71,7 @@ export const parseFile = async (file: File, skipRows: number): Promise<ParsedFil
           return reject(new Error("Il file è vuoto o non contiene dati leggibili."));
         }
 
-        const headers: string[] = jsonData.length > 0 ? jsonData[0] as string[] : [];
+        const headers: string[] = jsonData.length > 0 ? (jsonData[0] as any[]).map(h => String(h ?? '')) : [];
         const bodyData: RowData[] = jsonData.slice(1).map((row: any[]) =>
           headers.reduce((obj, header, index) => {
             obj[header] = row[index];
