@@ -26,6 +26,7 @@ export interface Mapping {
   code: string | null;
   quantity: string | null;
   description: string | null;
+  revision: string | null;
 }
 
 export interface Mappings {

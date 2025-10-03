@@ -11,6 +11,7 @@ import MappingTable from './components/MappingTable';
 import ResultsView from './components/ResultsView';
 import RuleEditorModal from './components/RuleEditorModal';
 import { ArrowRightIcon, ArrowLeftIcon } from './components/icons';
+import UnifiedMappingView from './components/UnifiedMappingView';
 
 const autoMapColumns = (headers: string[]): Mapping => {
     const findHeader = (keywords: string[], exactKeywords: string[] = []): string | null => {
@@ -51,11 +52,17 @@ const autoMapColumns = (headers: string[]): Mapping => {
         ['descrizione', 'desc.', 'description'],
         ['Descrizione articolo', 'Descrizione']
     );
+    
+    const revision = findHeader(
+        ['rev', 'revisione', 'revision'],
+        ['Rev', 'Revisione']
+    );
 
     return {
         code,
         quantity,
         description,
+        revision,
     };
 };
 
@@ -333,9 +340,16 @@ const App: React.FC = () => {
         if (!originalData || !partialData) return null;
         return (
           <div className="space-y-6">
+            <UnifiedMappingView
+                mappings={mappings}
+                originalHeaders={originalData.headers}
+                partialHeaders={partialData.headers}
+                onMappingChange={handleMappingChange}
+            />
+
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                <MappingTable fileData={originalData} mapping={mappings.original} onMappingChange={(f, v) => handleMappingChange('original', f, v)} skipRows={skipRowsOriginal} onSkipRowsChange={setSkipRowsOriginal}/>
-                <MappingTable fileData={partialData} mapping={mappings.partial} onMappingChange={(f, v) => handleMappingChange('partial', f, v)} skipRows={skipRowsPartial} onSkipRowsChange={setSkipRowsPartial} />
+                <MappingTable fileData={originalData} mapping={mappings.original} onMappingChange={(f, v) => handleMappingChange('original', f, v)} skipRows={skipRowsOriginal} onSkipRowsChange={setSkipRowsOriginal} showMappingControls={false} />
+                <MappingTable fileData={partialData} mapping={mappings.partial} onMappingChange={(f, v) => handleMappingChange('partial', f, v)} skipRows={skipRowsPartial} onSkipRowsChange={setSkipRowsPartial} showMappingControls={false} />
             </div>
             <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">

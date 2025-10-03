@@ -7,6 +7,7 @@ const fieldColorClasses: Record<keyof Mapping, { th: string; td: string }> = {
   code: { th: 'bg-indigo-100 text-indigo-800', td: 'bg-indigo-50' },
   quantity: { th: 'bg-sky-100 text-sky-800', td: 'bg-sky-50' },
   description: { th: 'bg-teal-100 text-teal-800', td: 'bg-teal-50' },
+  revision: { th: 'bg-amber-100 text-amber-800', td: 'bg-amber-50' },
 };
 
 interface MappingTableProps {
@@ -15,9 +16,10 @@ interface MappingTableProps {
   onMappingChange: (field: keyof Mapping, value: string) => void;
   skipRows: number;
   onSkipRowsChange: (value: number) => void;
+  showMappingControls?: boolean;
 }
 
-const MappingTable: React.FC<MappingTableProps> = ({ fileData, mapping, onMappingChange, skipRows, onSkipRowsChange }) => {
+const MappingTable: React.FC<MappingTableProps> = ({ fileData, mapping, onMappingChange, skipRows, onSkipRowsChange, showMappingControls = true }) => {
   const previewData = fileData.data.slice(0, 5);
   
   // Create a reverse map from header name to field ID for easy color lookup
@@ -36,7 +38,7 @@ const MappingTable: React.FC<MappingTableProps> = ({ fileData, mapping, onMappin
       <div className="flex justify-between items-start mb-4">
         <div>
           <h3 className="text-xl font-bold text-slate-800">{fileData.name}</h3>
-          <p className="text-sm text-slate-500">Mappa le colonne per l'analisi.</p>
+           {showMappingControls && <p className="text-sm text-slate-500">Mappa le colonne per l'analisi.</p>}
         </div>
         <div className="flex items-center space-x-2 flex-shrink-0">
             <label htmlFor={`skip-rows-${fileData.name}`} className="text-sm font-medium text-slate-600">Salta righe:</label>
@@ -52,29 +54,32 @@ const MappingTable: React.FC<MappingTableProps> = ({ fileData, mapping, onMappin
       </div>
       
       {/* Mapping Controls */}
-      <div className="border-t border-slate-200 pt-4 mb-4">
-        <h4 className="text-md font-semibold text-slate-700 mb-3">Mappatura Campi</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-          {MAPPABLE_FIELDS.map(field => (
-            <div key={field.id}>
-              <label htmlFor={`${fileData.name}-${field.id}`} className="block text-sm font-medium text-slate-700">
-                {field.label} {field.required && <span className="text-red-500">*</span>}
-              </label>
-              <select
-                id={`${fileData.name}-${field.id}`}
-                value={mapping[field.id] || ''}
-                onChange={(e) => onMappingChange(field.id, e.target.value)}
-                className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
-              >
-                <option value="">-- Seleziona colonna --</option>
-                {fileData.headers.map(header => (
-                  <option key={header} value={header}>{header}</option>
-                ))}
-              </select>
+      {showMappingControls && (
+        <div className="border-t border-slate-200 pt-4 mb-4">
+            <h4 className="text-md font-semibold text-slate-700 mb-3">Mappatura Campi</h4>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {MAPPABLE_FIELDS.map(field => (
+                <div key={field.id}>
+                <label htmlFor={`${fileData.name}-${field.id}`} className="block text-sm font-medium text-slate-700">
+                    {field.label} {field.required && <span className="text-red-500">*</span>}
+                </label>
+                <select
+                    id={`${fileData.name}-${field.id}`}
+                    value={mapping[field.id] || ''}
+                    onChange={(e) => onMappingChange(field.id, e.target.value)}
+                    className="mt-1 block w-full pl-3 pr-10 py-2 text-base border-slate-300 focus:outline-none focus:ring-indigo-500 focus:border-indigo-500 sm:text-sm rounded-md"
+                >
+                    <option value="">-- Seleziona colonna --</option>
+                    {fileData.headers.map(header => (
+                    <option key={header} value={header}>{header}</option>
+                    ))}
+                </select>
+                </div>
+            ))}
             </div>
-          ))}
         </div>
-      </div>
+      )}
+
 
       {/* Preview Table */}
       <div className="overflow-x-auto flex-grow">
@@ -83,8 +88,8 @@ const MappingTable: React.FC<MappingTableProps> = ({ fileData, mapping, onMappin
           <thead className="bg-slate-50">
             <tr>
               {fileData.headers.map(header => {
-                const field = headerToFieldMap[header];
-                const colorClass = field ? fieldColorClasses[field]?.th || '' : '';
+                const fieldKey = headerToFieldMap[header] as keyof Mapping | undefined;
+                const colorClass = fieldKey && fieldColorClasses[fieldKey] ? fieldColorClasses[fieldKey].th : '';
                 return (
                     <th 
                     key={header} 
@@ -101,8 +106,8 @@ const MappingTable: React.FC<MappingTableProps> = ({ fileData, mapping, onMappin
             {previewData.map((row, rowIndex) => (
               <tr key={rowIndex}>
                 {fileData.headers.map(header => {
-                  const field = headerToFieldMap[header];
-                  const colorClass = field ? fieldColorClasses[field]?.td || '' : '';
+                  const fieldKey = headerToFieldMap[header] as keyof Mapping | undefined;
+                  const colorClass = fieldKey && fieldColorClasses[fieldKey] ? fieldColorClasses[fieldKey].td : '';
                   return (
                     <td 
                         key={`${rowIndex}-${header}`} 
