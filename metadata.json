@@ -1,5 +1,5 @@
 {
-  "name": "Confronto Distinte Base (BOM) Rev_4",
+  "name": "Confronto Distinte Base (BOM) Rev_5 Associa Colonne",
   "description": "An application to compare two Bill of Materials (BOM) files. Users can upload an original and a partial BOM, map relevant columns, and get a detailed comparison of item codes and quantities, including items missing from the original and quantity mismatches.",
   "requestFramePermissions": []
 }

@@ -1,10 +1,6 @@
 
-
-
-
-
 import React, { useState, useMemo, useCallback } from 'react';
-import type { ParsedFile, Mappings, Mapping, ComparisonResult, MappingProfile, TransformationRule } from './types';
+import type { ParsedFile, Mappings, Mapping, ComparisonResult, MappingProfile, TransformationRule, RowData } from './types';
 import { AppStep } from './types';
 import { INITIAL_MAPPINGS, MAPPABLE_FIELDS } from './constants';
 import { useLocalStorage } from './hooks/useLocalStorage';
@@ -70,6 +66,89 @@ const autoMapColumns = (headers: string[]): Mapping => {
     };
 };
 
+const getColumnProfile = (data: RowData[], header: string | null) => {
+    if (!header) {
+        return { numericRatio: 0, avgLength: 0, totalCount: 0 };
+    }
+    const sample = data.slice(0, 50); // Sample first 50 rows
+    let numericCount = 0;
+    let totalLength = 0;
+    const values = sample.map(row => String(row[header] || '')).filter(Boolean);
+    
+    if (values.length === 0) {
+        return { numericRatio: 0, avgLength: 0, totalCount: 0 };
+    }
+
+    for (const value of values) {
+        // Checks for integers or decimals (with '.' or ',' separator)
+        if (/^\d+([,.]\d+)?$/.test(value)) {
+            numericCount++;
+        }
+        totalLength += value.length;
+    }
+    
+    return {
+        numericRatio: numericCount / values.length,
+        avgLength: totalLength / values.length,
+        totalCount: values.length,
+    };
+};
+
+const smartAutoMap = (originalFile: ParsedFile, partialFile: ParsedFile): Mappings => {
+    // Step 1: Initial keyword-based mapping for both files
+    const originalMapping = autoMapColumns(originalFile.headers);
+    const partialMapping = autoMapColumns(partialFile.headers);
+
+    if (!originalMapping.code) {
+        return { original: originalMapping, partial: partialMapping };
+    }
+
+    // Step 2: Profile the identified 'code' column from the original file
+    const refProfile = getColumnProfile(originalFile.data, originalMapping.code);
+
+    if (refProfile.totalCount === 0) {
+        return { original: originalMapping, partial: partialMapping };
+    }
+
+    // Step 3: Score all columns in the partial file against the reference profile
+    let bestCandidate: string | null = null;
+    let highestScore = -1;
+
+    for (const candidateHeader of partialFile.headers) {
+        const candidateProfile = getColumnProfile(partialFile.data, candidateHeader);
+        if (candidateProfile.totalCount === 0) continue;
+
+        let score = 0;
+
+        // Content score: How similar are the data types? (Highly weighted)
+        const numericSimilarity = 1 - Math.abs(refProfile.numericRatio - candidateProfile.numericRatio);
+        score += numericSimilarity * 10;
+
+        // Length score: How similar are the average lengths?
+        if (refProfile.avgLength > 0 && candidateProfile.avgLength > 0) {
+          const lengthSimilarity = 1 - (Math.abs(refProfile.avgLength - candidateProfile.avgLength) / Math.max(refProfile.avgLength, candidateProfile.avgLength));
+          score += lengthSimilarity * 2;
+        }
+
+        // Header score: Give a bonus if the header was the original keyword-based choice
+        if (candidateHeader === partialMapping.code) {
+            score += 5;
+        }
+
+        if (score > highestScore) {
+            highestScore = score;
+            bestCandidate = candidateHeader;
+        }
+    }
+    
+    // Step 4: Update the partial mapping with the best candidate found
+    if (bestCandidate) {
+        partialMapping.code = bestCandidate;
+    }
+
+    return { original: originalMapping, partial: partialMapping };
+};
+
 
 const App: React.FC = () => {
   const [step, setStep] = useState<AppStep>(AppStep.UPLOAD);
@@ -119,13 +198,11 @@ const App: React.FC = () => {
       setOriginalData(originalParsed);
       setPartialData(partialParsed);
 
-      const autoOriginalMapping = autoMapColumns(originalParsed.headers);
-      const autoPartialMapping = autoMapColumns(partialParsed.headers);
+      const { original: autoOriginalMapping, partial: autoPartialMapping } = smartAutoMap(originalParsed, partialParsed);
       setMappings({
           original: autoOriginalMapping,
           partial: autoPartialMapping
       });
-
 
       if (rulesFile) {
         const parsedRules = await parseRulesFile(rulesFile);
@@ -138,7 +215,6 @@ const App: React.FC = () => {
 
       setStep(AppStep.MAPPING);
     } catch (err) {
-// FIX: Added opening brace for the catch block. This syntax error was causing all subsequent scope-related errors.
       setError(err instanceof Error ? err.message : String(err));
       setStep(AppStep.UPLOAD);
     } finally {
