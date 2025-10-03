@@ -51,15 +51,15 @@ const FileDropzone: React.FC<FileDropzoneProps> = ({ onFileSelect, title, accept
 
   return (
     <div className="w-full">
-      <h3 className={`font-semibold text-slate-700 mb-2 ${isCompact ? 'text-base' : 'text-lg'}`}>{title}</h3>
+      <h3 className={`font-semibold text-slate-700 dark:text-slate-300 mb-2 ${isCompact ? 'text-base' : 'text-lg'}`}>{title}</h3>
       <div
         onDrop={onDrop}
         onDragOver={onDragOver}
         onDragLeave={onDragLeave}
         className={`relative flex flex-col items-center justify-center w-full border-2 border-dashed rounded-lg cursor-pointer transition-colors duration-200
           ${isCompact ? 'h-32' : 'h-48'}
-          ${dragOver ? 'border-indigo-500 bg-indigo-50' : 'border-slate-300 bg-white hover:bg-slate-50'}
-          ${file ? 'border-green-500 bg-green-50' : ''}`}
+          ${dragOver ? 'border-indigo-500 bg-indigo-50 dark:bg-indigo-900/50' : 'border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 hover:bg-slate-50 dark:hover:bg-slate-700'}
+          ${file ? 'border-green-500 bg-green-50 dark:bg-green-900/30' : ''}`}
       >
         <input
           type="file"
@@ -68,13 +68,13 @@ const FileDropzone: React.FC<FileDropzoneProps> = ({ onFileSelect, title, accept
           accept={acceptedTypes}
         />
         {file ? (
-          <div className={`text-center text-green-700 ${isCompact ? 'p-2' : ''}`}>
+          <div className={`text-center text-green-700 dark:text-green-300 ${isCompact ? 'p-2' : ''}`}>
             <FileIcon className={`mx-auto ${isCompact ? 'w-8 h-8' : 'w-12 h-12'}`} />
             <p className={`mt-2 font-semibold ${isCompact ? 'text-sm' : ''}`}>{file.name}</p>
             <p className="text-xs">({(file.size / 1024).toFixed(2)} KB)</p>
           </div>
         ) : (
-          <div className={`text-center text-slate-500 ${isCompact ? 'p-2' : ''}`}>
+          <div className={`text-center text-slate-500 dark:text-slate-400 ${isCompact ? 'p-2' : ''}`}>
             <UploadIcon className={`mx-auto ${isCompact ? 'w-8 h-8' : 'w-12 h-12'}`} />
             <p className={`mt-2 font-semibold ${isCompact ? 'text-sm' : ''}`}>Trascina il file qui</p>
             <p className="text-xs">o clicca per selezionare</p>

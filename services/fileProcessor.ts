@@ -207,127 +207,155 @@ export const compareData = (
     throw new Error("Mappatura colonne obbligatorie mancante.");
   }
 
-  // 1. Build a map from the partial data for efficient lookup (always aggregated).
-  const partialMapData = new Map<string, { quantity: number; description: string | null; row: RowData }>();
+  const getKey = (code: any, revision: any): string => `${String(code)}::${String(revision ?? '')}`;
+
+  // 1. Build maps from partial data for efficient lookup.
+  const partialMapData = new Map<string, { quantity: number; description: string | null; revision: string | null }>();
+  const partialCodeToRevisions = new Map<string, { revision: string | null; description: string | null; quantity: number }[]>();
+
   for (const row of partialData.data) {
     const code = String(row[partialMap.code]);
     const quantity = normalizeQuantity(row[partialMap.quantity]);
     const description = partialMap.description ? String(row[partialMap.description]) : null;
+    const revision = partialMap.revision ? String(row[partialMap.revision]) : null;
 
     if (code && quantity !== null) {
-      if (partialMapData.has(code)) {
-        const existing = partialMapData.get(code)!;
+      // Aggregate by full key (code + revision)
+      const key = getKey(code, revision);
+      if (partialMapData.has(key)) {
+        const existing = partialMapData.get(key)!;
         existing.quantity += quantity;
       } else {
-        partialMapData.set(code, { quantity, description, row });
+        partialMapData.set(key, { quantity, description, revision });
+      }
+
+      // Store all revisions for a given code, aggregated
+      if (!partialCodeToRevisions.has(code)) {
+        partialCodeToRevisions.set(code, []);
+      }
+      const revisionList = partialCodeToRevisions.get(code)!;
+      const existingRevisionEntry = revisionList.find(r => r.revision === revision);
+      if (existingRevisionEntry) {
+          existingRevisionEntry.quantity += quantity;
+      } else {
+          revisionList.push({ revision, description, quantity });
       }
     }
   }
   
-  // 2. Aggregate original data if needed.
+  // 2. Prepare original data (aggregate if needed).
   const dataToIterate: RowData[] = (() => {
     if (!aggregate) {
       return originalData.data;
     }
     
-    const originalAggregatedData = new Map<string, { quantity: number; description: string | null; rows: RowData[] }>();
+    const originalAggregatedData = new Map<string, { quantity: number; description: string | null; revision: string | null; rows: RowData[] }>();
     for (const row of originalData.data) {
         const code = String(row[originalMap.code]);
         const quantity = normalizeQuantity(row[originalMap.quantity]);
         const description = originalMap.description ? String(row[originalMap.description]) : null;
+        const revision = originalMap.revision ? String(row[originalMap.revision]) : null;
         
         if(code) {
-            if (originalAggregatedData.has(code)) {
-                const existing = originalAggregatedData.get(code)!;
+            const key = getKey(code, revision);
+            if (originalAggregatedData.has(key)) {
+                const existing = originalAggregatedData.get(key)!;
                 if(quantity !== null) existing.quantity += quantity;
                 existing.rows.push(row);
             } else {
-                originalAggregatedData.set(code, { quantity: quantity ?? 0, description, rows: [row] });
+                originalAggregatedData.set(key, { quantity: quantity ?? 0, description, revision, rows: [row] });
             }
         }
     }
-    return Array.from(originalAggregatedData.entries()).map(([code, data]) => ({
-      ...data.rows[0],
-      [originalMap.code!]: code, 
+    return Array.from(originalAggregatedData.values()).map((data) => ({
+      ...data.rows[0], // Use first row as a template
+      [originalMap.code!]: data.rows[0][originalMap.code!], 
       [originalMap.quantity!]: data.quantity,
-      ...(originalMap.description && data.description ? { [originalMap.description]: data.description } : {})
+      ...(originalMap.description && data.description ? { [originalMap.description]: data.description } : {}),
+      ...(originalMap.revision && data.revision ? { [originalMap.revision]: data.revision } : {}),
     }));
   })();
 
   // 3. Iterate over original data, compare, and track processed codes.
-  const processedOriginalCodes = new Set<string>();
-  const resultsFromOriginal = dataToIterate.map((originalRow): ComparisonResult | null => {
+  const processedPartialKeys = new Set<string>();
+  const resultsFromOriginal: ComparisonResult[] = [];
+
+  for (const originalRow of dataToIterate) {
     const originalCode = String(originalRow[originalMap.code!]);
     const originalQuantityRaw = originalRow[originalMap.quantity!];
     const originalQuantity = normalizeQuantity(originalQuantityRaw);
     const originalDescription = originalMap.description ? String(originalRow[originalMap.description!]) : null;
+    const originalRevision = originalMap.revision ? String(originalRow[originalMap.revision!]) : null;
 
-    if (!originalCode) return null;
-
-    processedOriginalCodes.add(originalCode);
+    if (!originalCode) continue;
 
     if (originalQuantity === null) {
-      return {
-        originalCode,
-        originalQuantity: String(originalQuantityRaw),
-        originalDescription,
-        partialCode: null,
-        partialQuantity: null,
-        partialDescription: null,
+      resultsFromOriginal.push({
+        originalCode, originalQuantity: String(originalQuantityRaw), originalDescription, originalRevision,
+        partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null,
         status: ResultStatus.INVALID_QUANTITY,
-      };
-    }
-
-    const partialMatch = partialMapData.get(originalCode);
-
-    if (!partialMatch) {
-      return {
-        originalCode,
-        originalQuantity,
-        originalDescription,
-        partialCode: null,
-        partialQuantity: null,
-        partialDescription: null,
-        status: ResultStatus.ABSENT,
-      };
+      });
+      continue;
     }
     
-    const { quantity: partialQuantity, description: partialDescription } = partialMatch;
-    
-    let status: ResultStatus;
-    if (aggregate) {
-      status = ResultStatus.QUANTITY_EQUAL;
-    } else {
+    const key = getKey(originalCode, originalRevision);
+    const exactMatch = partialMapData.get(key);
+
+    if (exactMatch) {
+      // Exact match on code and revision
+      processedPartialKeys.add(key);
+      const { quantity: partialQuantity, description: partialDescription, revision: partialRevision } = exactMatch;
+      
       const quantityDiff = Math.abs(originalQuantity - partialQuantity);
-      if (quantityDiff < 1e-6) {
-        status = ResultStatus.QUANTITY_EQUAL;
+      const status = (quantityDiff < 1e-6) ? ResultStatus.QUANTITY_EQUAL : ResultStatus.QUANTITY_DIFFERENT;
+
+      resultsFromOriginal.push({
+        originalCode, originalQuantity, originalDescription, originalRevision,
+        partialCode: originalCode, partialQuantity, partialDescription, partialRevision,
+        status,
+      });
+    } else {
+      // No exact match, check for same code with different revision
+      const otherRevisions = partialCodeToRevisions.get(originalCode);
+      if (otherRevisions && otherRevisions.length > 0) {
+        // Revision mismatch found
+        const firstOtherRevision = otherRevisions[0];
+        resultsFromOriginal.push({
+          originalCode, originalQuantity, originalDescription, originalRevision,
+          partialCode: originalCode,
+          partialQuantity: firstOtherRevision.quantity,
+          partialDescription: firstOtherRevision.description,
+          partialRevision: firstOtherRevision.revision,
+          status: ResultStatus.REVISION_DIFFERENT,
+        });
+
+        // Mark all revisions of this code as processed to avoid them appearing as "Absent in Original"
+        otherRevisions.forEach(rev => {
+            processedPartialKeys.add(getKey(originalCode, rev.revision));
+        });
+
       } else {
-        status = ResultStatus.QUANTITY_DIFFERENT;
+        // Code is completely absent in partial data
+        resultsFromOriginal.push({
+          originalCode, originalQuantity, originalDescription, originalRevision,
+          partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null,
+          status: ResultStatus.ABSENT,
+        });
       }
     }
-
-    return {
-      originalCode,
-      originalQuantity,
-      originalDescription,
-      partialCode: originalCode,
-      partialQuantity,
-      partialDescription,
-      status,
-    };
-  }).filter((r): r is ComparisonResult => r !== null);
+  }
   
-  // 4. Any items in the partial map not found in original are "ABSENT_IN_ORIGINAL".
+  // 4. Any items in the partial map not processed are "ABSENT_IN_ORIGINAL".
   const resultsFromPartial: ComparisonResult[] = [];
-  for (const [code, data] of partialMapData.entries()) {
-    if (!processedOriginalCodes.has(code)) {
+  for (const [key, data] of partialMapData.entries()) {
+    if (!processedPartialKeys.has(key)) {
+      const [code] = key.split('::');
       resultsFromPartial.push({
-          originalCode: null,
-          originalQuantity: null,
-          originalDescription: null,
+          originalCode: null, originalQuantity: null, originalDescription: null, originalRevision: null,
           partialCode: code,
           partialQuantity: data.quantity,
           partialDescription: data.description,
+          partialRevision: data.revision,
           status: ResultStatus.ABSENT_IN_ORIGINAL,
       });
     }

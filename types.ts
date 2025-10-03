@@ -8,6 +8,7 @@ export enum ResultStatus {
   ABSENT_IN_ORIGINAL = "Cod. Assenti in Distinta Cliente",
   ABSENT = "Cod. Assenti in Distinta Gestionale",
   QUANTITY_DIFFERENT = "Quantità diversa",
+  REVISION_DIFFERENT = "Revisione diversa",
   QUANTITY_EQUAL = "Quantità uguale",
   INVALID_QUANTITY = "Quantità non interpretabile",
 }
@@ -38,9 +39,11 @@ export interface ComparisonResult {
   partialCode: string | number | null;
   partialQuantity: string | number | null;
   partialDescription: string | null;
+  partialRevision: string | null;
   originalCode: string | number | null;
   originalQuantity: string | number | null;
   originalDescription: string | null;
+  originalRevision: string | null;
   status: ResultStatus;
 }
 

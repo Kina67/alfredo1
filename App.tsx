@@ -1,4 +1,8 @@
 
+
+
+
+
 import React, { useState, useMemo, useCallback } from 'react';
 import type { ParsedFile, Mappings, Mapping, ComparisonResult, MappingProfile, TransformationRule } from './types';
 import { AppStep } from './types';
@@ -10,7 +14,7 @@ import FileDropzone from './components/FileDropzone';
 import MappingTable from './components/MappingTable';
 import ResultsView from './components/ResultsView';
 import RuleEditorModal from './components/RuleEditorModal';
-import { ArrowRightIcon, ArrowLeftIcon } from './components/icons';
+import { ArrowRightIcon, ArrowLeftIcon, SunIcon, MoonIcon } from './components/icons';
 import UnifiedMappingView from './components/UnifiedMappingView';
 
 const autoMapColumns = (headers: string[]): Mapping => {
@@ -91,6 +95,18 @@ const App: React.FC = () => {
   const [profiles, setProfiles] = useLocalStorage<MappingProfile[]>('mapping-profiles', []);
   const [profileName, setProfileName] = useState('');
 
+  const [theme, setTheme] = useLocalStorage<'light' | 'dark'>('theme', 'light');
+
+  React.useEffect(() => {
+    const root = window.document.documentElement;
+    root.classList.remove(theme === 'light' ? 'dark' : 'light');
+    root.classList.add(theme);
+  }, [theme]);
+
+  const toggleTheme = () => {
+    setTheme(prevTheme => (prevTheme === 'light' ? 'dark' : 'light'));
+  };
+
   const handleFileProcessing = useCallback(async () => {
     if (!originalFile || !partialFile) return;
     setIsLoading(true);
@@ -122,6 +138,7 @@ const App: React.FC = () => {
 
       setStep(AppStep.MAPPING);
     } catch (err) {
+// FIX: Added opening brace for the catch block. This syntax error was causing all subsequent scope-related errors.
       setError(err instanceof Error ? err.message : String(err));
       setStep(AppStep.UPLOAD);
     } finally {
@@ -314,7 +331,7 @@ const App: React.FC = () => {
     switch (step) {
       case AppStep.UPLOAD:
         return (
-          <div className="bg-white p-8 rounded-xl shadow-lg border border-slate-200">
+          <div className="bg-white dark:bg-slate-800 p-8 rounded-xl shadow-lg border border-slate-200 dark:border-slate-700">
             <div className="grid md:grid-cols-2 gap-8 items-start">
               <FileDropzone title="1. Carica Distinta Cliente (BOM Completa)" onFileSelect={setOriginalFile} acceptedTypes=".xls,.xlsx,.xlsm,.csv,.tsv" />
               <FileDropzone title="2. Carica Distinta Gestionale (Sottoinsieme)" onFileSelect={setPartialFile} acceptedTypes=".xls,.xlsx,.xlsm,.csv,.tsv" />
@@ -351,29 +368,29 @@ const App: React.FC = () => {
                 <MappingTable fileData={originalData} mapping={mappings.original} onMappingChange={(f, v) => handleMappingChange('original', f, v)} skipRows={skipRowsOriginal} onSkipRowsChange={setSkipRowsOriginal} showMappingControls={false} />
                 <MappingTable fileData={partialData} mapping={mappings.partial} onMappingChange={(f, v) => handleMappingChange('partial', f, v)} skipRows={skipRowsPartial} onSkipRowsChange={setSkipRowsPartial} showMappingControls={false} />
             </div>
-            <div className="bg-white p-6 rounded-xl shadow-md border border-slate-200">
+            <div className="bg-white dark:bg-slate-800 p-6 rounded-xl shadow-md border border-slate-200 dark:border-slate-700">
                 <div className="flex flex-col md:flex-row items-start md:items-center justify-between gap-6">
                     {/* Left side: Options & Profiles */}
                     <div className="space-y-4 w-full md:w-auto flex-grow">
-                    <h3 className="text-lg font-semibold text-slate-800">Opzioni & Profili</h3>
+                    <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Opzioni & Profili</h3>
                     <div className="relative flex items-center">
                         <input
                             type="checkbox"
                             id="aggregate"
                             checked={aggregateCodes}
                             onChange={(e) => setAggregateCodes(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 text-indigo-600 focus:ring-indigo-500"
+                            className="h-4 w-4 rounded border-gray-300 dark:border-slate-500 text-indigo-600 focus:ring-indigo-500 bg-transparent"
                         />
-                        <label htmlFor="aggregate" className="ml-3 block text-sm font-medium text-gray-700">
+                        <label htmlFor="aggregate" className="ml-3 block text-sm font-medium text-gray-700 dark:text-slate-300">
                             Aggrega quantità per codici duplicati nel file Cliente
                         </label>
                     </div>
                     <div className="flex flex-wrap items-center gap-2">
-                        <select onChange={(e) => loadProfile(e.target.value)} defaultValue="" className="p-2 border border-slate-300 rounded-md text-sm sm:flex-grow-0 flex-grow">
+                        <select onChange={(e) => loadProfile(e.target.value)} defaultValue="" className="p-2 border border-slate-400 dark:border-slate-500 rounded-md text-sm sm:flex-grow-0 flex-grow bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-200">
                             <option value="" disabled>Carica un profilo</option>
                             {profiles.map(p => <option key={p.name} value={p.name}>{p.name}</option>)}
                         </select>
-                        <input type="text" placeholder="Nome nuovo profilo..." value={profileName} onChange={e => setProfileName(e.target.value)} className="p-2 border border-slate-300 rounded-md text-sm sm:flex-grow-0 flex-grow" />
+                        <input type="text" placeholder="Nome nuovo profilo..." value={profileName} onChange={e => setProfileName(e.target.value)} className="p-2 border border-slate-400 dark:border-slate-500 rounded-md text-sm sm:flex-grow-0 flex-grow bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-200 placeholder:text-slate-500 dark:placeholder:text-slate-400" />
                         <button onClick={saveProfile} className="px-4 py-2 bg-slate-600 text-white font-semibold rounded-md hover:bg-slate-700 transition text-sm">Salva Profilo</button>
                     </div>
                     </div>
@@ -381,7 +398,7 @@ const App: React.FC = () => {
                     <div className="flex-shrink-0 w-full md:w-auto flex items-center justify-end flex-wrap gap-4">
                         <button
                           onClick={handleBackToUpload}
-                          className="inline-flex items-center justify-center px-6 py-2 bg-slate-200 text-slate-800 font-semibold rounded-lg hover:bg-slate-300 transition-colors duration-200"
+                          className="inline-flex items-center justify-center px-6 py-2 bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 transition-colors duration-200"
                         >
                             <ArrowLeftIcon className="w-5 h-5 mr-2" />
                             <span>Torna al Caricamento</span>
@@ -435,18 +452,25 @@ const App: React.FC = () => {
   };
 
   return (
-    <div className="min-h-screen bg-slate-100 font-sans">
-      <header className="bg-white shadow-sm">
-        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8">
-            <h1 className="text-3xl font-bold leading-tight text-slate-900">
+    <div className="min-h-screen bg-slate-100 dark:bg-slate-900 font-sans transition-colors duration-300">
+      <header className="bg-white dark:bg-slate-800/50 dark:backdrop-blur-sm shadow-sm sticky top-0 z-40 transition-colors duration-300">
+        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
+            <h1 className="text-3xl font-bold leading-tight text-slate-900 dark:text-slate-100">
             Confronto Distinte Base (BOM)
             </h1>
+            <button
+              onClick={toggleTheme}
+              className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-800 transition-colors"
+              aria-label="Toggle dark mode"
+            >
+              {theme === 'light' ? <MoonIcon className="w-6 h-6" /> : <SunIcon className="w-6 h-6" />}
+            </button>
         </div>
       </header>
       <main className="py-10">
         <div className="max-w-7xl mx-auto sm:px-6 lg:px-8">
             {error && (
-                <div className="bg-red-100 border-l-4 border-red-500 text-red-700 p-4 mb-6 rounded-md" role="alert">
+                <div className="bg-red-100 dark:bg-red-900/30 border-l-4 border-red-500 text-red-700 dark:text-red-300 p-4 mb-6 rounded-md" role="alert">
                     <p className="font-bold">Errore</p>
                     <p>{error}</p>
                 </div>

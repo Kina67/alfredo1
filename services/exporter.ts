@@ -7,26 +7,30 @@ const getExportHeaders = () => {
     const sourcePrefix = 'Cliente';
     const targetPrefix = 'Gestionale';
     return {
+        status: 'Esito',
         sourceCode: `Codice_${sourcePrefix}`,
         sourceQty: `Q_${sourcePrefix}`,
+        sourceRev: `Rev_${sourcePrefix}`,
         sourceDesc: `Descrizione_${sourcePrefix}`,
         targetCode: `Codice_${targetPrefix}_Corrispondente`,
         targetQty: `Q_${targetPrefix}`,
+        targetRev: `Rev_${targetPrefix}`,
         targetDesc: `Descrizione_${targetPrefix}`,
-        status: 'Esito',
     };
 };
 
 const formatResultsForExport = (results: ComparisonResult[]) => {
   const h = getExportHeaders();
   return results.map(r => ({
+    [h.status]: r.status,
     [h.sourceCode]: r.originalCode,
     [h.sourceQty]: r.originalQuantity,
+    [h.sourceRev]: r.originalRevision,
     [h.sourceDesc]: r.originalDescription,
     [h.targetCode]: r.partialCode,
     [h.targetQty]: r.partialQuantity,
+    [h.targetRev]: r.partialRevision,
     [h.targetDesc]: r.partialDescription,
-    [h.status]: r.status,
   }));
 };
 
@@ -64,6 +68,10 @@ export const exportToExcel = (
     {
       status: EResultStatus.QUANTITY_DIFFERENT,
       sheetName: 'Qta_Diverse',
+    },
+    {
+      status: EResultStatus.REVISION_DIFFERENT,
+      sheetName: 'Rev_Diverse',
     },
   ];
 
