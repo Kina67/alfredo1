@@ -9,6 +9,7 @@ import { compareData, parseFile, parseRulesFile, applyTransformationRules } from
 import FileDropzone from './components/FileDropzone';
 import MappingTable from './components/MappingTable';
 import ResultsView from './components/ResultsView';
+import RuleEditorModal from './components/RuleEditorModal';
 import { ArrowRightIcon, ArrowLeftIcon } from './components/icons';
 
 const autoMapColumns = (headers: string[]): Mapping => {
@@ -70,6 +71,8 @@ const App: React.FC = () => {
   const [originalData, setOriginalData] = useState<ParsedFile | null>(null);
   const [partialData, setPartialData] = useState<ParsedFile | null>(null);
   const [rules, setRules] = useState<TransformationRule[] | null>(null);
+  const [rulesFileDisplayName, setRulesFileDisplayName] = useState<string | null>(null);
+  const [isRuleEditorOpen, setIsRuleEditorOpen] = useState(false);
   
   const [skipRowsOriginal, setSkipRowsOriginal] = useState(0);
   const [skipRowsPartial, setSkipRowsPartial] = useState(0);
@@ -93,7 +96,6 @@ const App: React.FC = () => {
       setOriginalData(originalParsed);
       setPartialData(partialParsed);
 
-      // Automap columns
       const autoOriginalMapping = autoMapColumns(originalParsed.headers);
       const autoPartialMapping = autoMapColumns(partialParsed.headers);
       setMappings({
@@ -105,8 +107,10 @@ const App: React.FC = () => {
       if (rulesFile) {
         const parsedRules = await parseRulesFile(rulesFile);
         setRules(parsedRules);
+        setRulesFileDisplayName(rulesFile.name);
       } else {
         setRules(null);
+        setRulesFileDisplayName(null);
       }
 
       setStep(AppStep.MAPPING);
@@ -190,6 +194,7 @@ const App: React.FC = () => {
         const parsedRules = await parseRulesFile(file);
         setRules(parsedRules);
         setRulesFile(file);
+        setRulesFileDisplayName(file.name);
 
         const comparisonResults = performComparison(originalData, partialData, mappings, parsedRules, aggregateCodes);
         setResults(comparisonResults);
@@ -200,6 +205,31 @@ const App: React.FC = () => {
     }
   }, [originalData, partialData, mappings, aggregateCodes, isMappingComplete]);
 
+  const handleSaveRules = useCallback((updatedRules: TransformationRule[]) => {
+    if (!originalData || !partialData) return;
+    
+    setIsLoading(true);
+    setError(null);
+    
+    setRules(updatedRules);
+    setRulesFileDisplayName(prev => {
+        if (!prev) return "Regole personalizzate";
+        if (prev.includes('(modificato)')) return prev;
+        const baseName = prev.split('.').slice(0, -1).join('.');
+        return `${baseName || prev} (modificato)`;
+    });
+
+    try {
+        const comparisonResults = performComparison(originalData, partialData, mappings, updatedRules, aggregateCodes);
+        setResults(comparisonResults);
+    } catch (err) {
+        setError(err instanceof Error ? err.message : String(err));
+    } finally {
+        setIsLoading(false);
+        setIsRuleEditorOpen(false);
+    }
+  }, [originalData, partialData, mappings, aggregateCodes]);
+
   const handleRemoveRules = useCallback(() => {
     if (!originalData || !partialData) return;
     
@@ -207,6 +237,7 @@ const App: React.FC = () => {
     setError(null);
     setRules(null);
     setRulesFile(null);
+    setRulesFileDisplayName(null);
 
     try {
         const comparisonResults = performComparison(originalData, partialData, mappings, null, aggregateCodes);
@@ -235,6 +266,7 @@ const App: React.FC = () => {
     setAggregateCodes(false);
     setRulesFile(null);
     setRules(null);
+    setRulesFileDisplayName(null);
   };
   
   const handleBackToUpload = () => {
@@ -365,8 +397,17 @@ const App: React.FC = () => {
                     partialFileName={partialFile?.name}
                     onApplyRulesFile={handleApplyRulesFile}
                     onRemoveRules={handleRemoveRules}
-                    rulesFileName={rulesFile?.name}
+                    rulesFileName={rulesFileDisplayName}
+                    onEditRules={() => setIsRuleEditorOpen(true)}
                  />
+                 {rules !== null && (
+                    <RuleEditorModal
+                        isOpen={isRuleEditorOpen}
+                        rules={rules}
+                        onClose={() => setIsRuleEditorOpen(false)}
+                        onSave={handleSaveRules}
+                    />
+                 )}
                  <div className="mt-8 text-center">
                     <button onClick={handleReset} className="px-6 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 transition">
                         Inizia una nuova analisi
