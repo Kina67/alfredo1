@@ -12,7 +12,7 @@ export default defineConfig(({ mode }) => {
     },
     plugins: [react()],
     // 👇 Configurazione per GitHub Pages
-    base: isProd ? '/Alfredo/' : '/',
+    base: isProd ? '/Alfredo1/' : '/',
     resolve: {
       alias: {
         '@': path.resolve(__dirname, '.'),
