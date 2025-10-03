@@ -30,6 +30,7 @@ const statusConfig = {
 const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, isAggregated, originalFileName, partialFileName }) => {
   const [filter, setFilter] = useState<ResultStatus | 'ALL'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
+  const [descriptionSearchTerm, setDescriptionSearchTerm] = useState('');
 
   const stats = useMemo(() => {
     return results.reduce((acc, r) => {
@@ -52,9 +53,17 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
             String(r.partialCode ?? '').toLowerCase().includes(lowerCaseSearchTerm)
         );
     }
+
+    if (descriptionSearchTerm) {
+        const lowerCaseDescriptionSearchTerm = descriptionSearchTerm.toLowerCase();
+        tempResults = tempResults.filter(r =>
+            String(r.originalDescription ?? '').toLowerCase().includes(lowerCaseDescriptionSearchTerm) ||
+            String(r.partialDescription ?? '').toLowerCase().includes(lowerCaseDescriptionSearchTerm)
+        );
+    }
     
     return tempResults;
-  }, [results, filter, searchTerm]);
+  }, [results, filter, searchTerm, descriptionSearchTerm]);
   
   const sourceFileLabel = 'Cliente';
   const targetFileLabel = 'Gestionale';
@@ -86,12 +95,19 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
                           ))}
                       </div>
                   </div>
-                   <div>
+                   <div className="flex flex-wrap items-center gap-2">
                         <input
                             type="text"
                             placeholder="Filtra per codice..."
                             value={searchTerm}
                             onChange={(e) => setSearchTerm(e.target.value)}
+                            className="w-full sm:w-auto px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
+                        />
+                        <input
+                            type="text"
+                            placeholder="Filtra per descrizione..."
+                            value={descriptionSearchTerm}
+                            onChange={(e) => setDescriptionSearchTerm(e.target.value)}
                             className="w-full sm:w-auto px-3 py-1.5 border border-slate-300 rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500"
                         />
                     </div>
@@ -119,8 +135,10 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Esito</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Codice {sourceFileLabel}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Q. {sourceFileLabel}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Descrizione {sourceFileLabel}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Codice {targetFileLabel}</th>
               <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Q. {targetFileLabel}</th>
+              <th className="px-6 py-3 text-left text-xs font-medium text-slate-600 uppercase">Descrizione {targetFileLabel}</th>
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-slate-200">
@@ -134,8 +152,10 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
                 </td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-slate-900">{r.originalCode ?? 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{r.originalQuantity ?? 'N/A'}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{r.originalDescription ?? 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{r.partialCode ?? 'N/A'}</td>
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{r.status === ResultStatus.QUANTITY_DIFFERENT ? <span className="font-bold text-yellow-700">{r.partialQuantity}</span> : r.partialQuantity ?? 'N/A'}</td>
+                <td className="px-6 py-4 whitespace-nowrap text-sm text-slate-700">{r.partialDescription ?? 'N/A'}</td>
               </tr>
             ))}
           </tbody>
