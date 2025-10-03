@@ -84,7 +84,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
   }, [results]);
   
   const badgeConfigs: { label: string; status: ResultStatus | 'ALL'; value: number; color: string }[] = [
-    { label: `Totale Codici`, status: 'ALL', value: results.length, color: "bg-green-100 text-green-900 dark:bg-green-800/40 dark:text-green-100" },
+    { label: isAggregated ? 'TOTALE CODICI' : 'TOTALE RIGHE', status: 'ALL', value: results.length, color: "bg-green-100 text-green-900 dark:bg-green-800/40 dark:text-green-100" },
     { label: ResultStatus.ABSENT_IN_ORIGINAL, status: ResultStatus.ABSENT_IN_ORIGINAL, value: stats[ResultStatus.ABSENT_IN_ORIGINAL] || 0, color: "bg-orange-100 text-orange-900 dark:bg-orange-800/40 dark:text-orange-100" },
     { label: ResultStatus.ABSENT, status: ResultStatus.ABSENT, value: stats[ResultStatus.ABSENT] || 0, color: "bg-red-100 text-red-900 dark:bg-red-800/40 dark:text-red-100" },
     { label: ResultStatus.QUANTITY_DIFFERENT, status: ResultStatus.QUANTITY_DIFFERENT, value: stats[ResultStatus.QUANTITY_DIFFERENT] || 0, color: "bg-yellow-100 text-yellow-900 dark:bg-yellow-800/40 dark:text-yellow-100" },
