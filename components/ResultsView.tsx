@@ -14,8 +14,8 @@ interface ResultsViewProps {
   onRemoveRules: () => void;
   rulesFileName?: string | null;
   onEditRules: () => void;
-  comparisonOptions: { ignoreQuantity: boolean; ignoreRevision: boolean };
-  onComparisonOptionsChange: (options: { ignoreQuantity?: boolean; ignoreRevision?: boolean }) => void;
+  comparisonOptions: { ignoreQuantity: boolean; ignoreRevision: boolean; ignoreRules: boolean };
+  onComparisonOptionsChange: (options: { ignoreQuantity?: boolean; ignoreRevision?: boolean; ignoreRules?: boolean }) => void;
 }
 
 type ColumnKey = 'status' | 'originalCode' | 'originalQuantity' | 'originalDescription' | 'originalRevision' | 'partialCode' | 'partialQuantity' | 'partialDescription' | 'partialRevision';
@@ -277,6 +277,16 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
                     onChange={(e) => setDescriptionSearchTerm(e.target.value)}
                     className="w-full sm:w-auto px-3 py-1.5 border border-transparent rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-slate-600 text-white placeholder-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:placeholder-slate-400"
                 />
+                <select
+                    value={filter}
+                    onChange={(e) => setFilter(e.target.value as ResultStatus | 'ALL')}
+                    className="w-full sm:w-auto px-3 py-1.5 border border-transparent rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-slate-700 text-white dark:bg-slate-600 dark:text-slate-200"
+                >
+                    <option value="ALL">Tutti gli esiti</option>
+                    {Object.values(ResultStatus).map(status => (
+                        <option key={status} value={status}>{status}</option>
+                    ))}
+                </select>
             </div>
         </div>
         
@@ -300,6 +310,16 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
                   className="h-4 w-4 rounded border-gray-300 dark:border-slate-500 text-indigo-600 focus:ring-indigo-500 bg-transparent"
                 />
                 <span className="ml-2 text-slate-700 dark:text-slate-300">Ignora Revisioni</span>
+              </label>
+              <label className={`flex items-center cursor-pointer ${!rulesFileName ? 'opacity-50 cursor-not-allowed' : ''}`}>
+                <input
+                  type="checkbox"
+                  checked={comparisonOptions.ignoreRules}
+                  onChange={(e) => onComparisonOptionsChange({ ignoreRules: e.target.checked })}
+                  className="h-4 w-4 rounded border-gray-300 dark:border-slate-500 text-indigo-600 focus:ring-indigo-500 bg-transparent"
+                  disabled={!rulesFileName}
+                />
+                <span className="ml-2 text-slate-700 dark:text-slate-300">Ignora Regole</span>
               </label>
             </div>
           </div>

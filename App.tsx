@@ -169,6 +169,7 @@ const App: React.FC = () => {
   const [comparisonOptions, setComparisonOptions] = useState({
     ignoreQuantity: false,
     ignoreRevision: false,
+    ignoreRules: false,
   });
 
   const [mappings, setMappings] = useState<Mappings>(INITIAL_MAPPINGS);
@@ -243,12 +244,12 @@ const App: React.FC = () => {
     currentMappings: Mappings,
     currentRules: TransformationRule[] | null,
     aggregate: boolean,
-    options: { ignoreQuantity: boolean, ignoreRevision: boolean }
+    options: { ignoreQuantity: boolean, ignoreRevision: boolean, ignoreRules: boolean }
   ): ComparisonResult[] => {
       let processedOriginalData = currentOriginalData;
       let processedPartialData = currentPartialData;
 
-      if (currentRules && currentRules.length > 0) {
+      if (currentRules && currentRules.length > 0 && !options.ignoreRules) {
           processedOriginalData = applyTransformationRules(
               currentOriginalData,
               currentRules,
@@ -289,7 +290,7 @@ const App: React.FC = () => {
     }, 50);
   }, [isMappingComplete, originalData, partialData, mappings, rules, comparisonOptions]);
 
-  const handleComparisonOptionsChange = (newOption: { ignoreQuantity?: boolean; ignoreRevision?: boolean }) => {
+  const handleComparisonOptionsChange = (newOption: { ignoreQuantity?: boolean; ignoreRevision?: boolean; ignoreRules?: boolean }) => {
     const updatedOptions = { ...comparisonOptions, ...newOption };
     setComparisonOptions(updatedOptions);
 
@@ -556,10 +557,17 @@ const App: React.FC = () => {
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 font-sans transition-colors duration-300">
       <header className="bg-white dark:bg-slate-800/50 dark:backdrop-blur-sm shadow-sm sticky top-0 z-40 transition-colors duration-300">
-        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center">
-            <h1 className="text-3xl font-bold leading-tight text-slate-900 dark:text-slate-100">
-            Confronto Distinte Base (BOM)
-            </h1>
+        <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center gap-4">
+            <div className="flex-1 min-w-0">
+                <h1 className="text-2xl font-bold leading-tight text-slate-900 dark:text-slate-100 truncate">
+                Confronto Distinte Base (BOM)
+                </h1>
+                {originalFile && partialFile && step !== AppStep.UPLOAD && (
+                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate" title={`${originalFile.name} vs ${partialFile.name}`}>
+                        {originalFile.name} vs {partialFile.name}
+                    </p>
+                )}
+            </div>
             <button
               onClick={toggleTheme}
               className="p-2 rounded-full text-slate-500 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 dark:focus:ring-offset-slate-800 transition-colors"

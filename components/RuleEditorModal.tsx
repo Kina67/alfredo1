@@ -88,7 +88,7 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
                         type="text"
                         value={rule.sourceCodes.join(' + ')}
                         onChange={(e) => handleRuleChange(index, { ...rule, sourceCodes: e.target.value.split('+').map(c => c.trim()) })}
-                        className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-slate-200 dark:bg-slate-700 dark:text-slate-200"
+                        className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
                         placeholder="Es: 12345 + 67890"
                       />
                     </div>
@@ -98,7 +98,7 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
                         type="text"
                         value={rule.resultCode}
                         onChange={(e) => handleRuleChange(index, { ...rule, resultCode: e.target.value })}
-                        className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-slate-200 dark:bg-slate-700 dark:text-slate-200"
+                        className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
                       />
                     </div>
                   </div>
@@ -108,7 +108,7 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
                         type="text"
                         value={rule.resultDescription}
                         onChange={(e) => handleRuleChange(index, { ...rule, resultDescription: e.target.value })}
-                        className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-slate-200 dark:bg-slate-700 dark:text-slate-200"
+                        className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
                       />
                     </div>
                 </div>
@@ -121,7 +121,7 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
                             type="text"
                             value={rule.value}
                             onChange={(e) => handleRuleChange(index, { ...rule, value: e.target.value })}
-                            className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-slate-200 dark:bg-slate-700 dark:text-slate-200"
+                            className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
                             placeholder='Es: TUTTI LE DESCRIZIONI CONTENENTI "SUPPORTO" oppure 98765'
                         />
                    </div>
