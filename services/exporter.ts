@@ -37,11 +37,14 @@ const formatResultsForExport = (results: ComparisonResult[]) => {
 export const exportToExcel = (
   results: ComparisonResult[],
   stats: Record<ResultStatus, number>,
+  isAggregated: boolean,
+  totalValue: number,
   filename: string = 'confronto_bom.xlsx'
 ) => {
   // 1. Dati per il foglio di Riepilogo
+  const summaryLabel = isAggregated ? 'Totale Codici Univoci' : 'Totale Righe';
   const summaryData = [
-    { Statistica: `Totale Codici`, Valore: results.length },
+    { Statistica: summaryLabel, Valore: totalValue },
     ...Object.entries(stats).map(([status, value]) => ({ Statistica: status, Valore: value })),
   ];
   const riepilogoWS = XLSX.utils.json_to_sheet(summaryData);

@@ -1,4 +1,4 @@
-import React, { useState, useMemo, useCallback } from 'react';
+import React, { useState, useMemo, useCallback, useRef } from 'react';
 import type { ParsedFile, Mappings, Mapping, ComparisonResult, MappingProfile, TransformationRule, RowData } from './types';
 import { AppStep } from './types';
 import { INITIAL_MAPPINGS, MAPPABLE_FIELDS } from './constants';
@@ -167,8 +167,7 @@ const App: React.FC = () => {
   const [skipRowsPartial, setSkipRowsPartial] = useState(0);
   const [aggregateCodes, setAggregateCodes] = useState(false);
   const [comparisonOptions, setComparisonOptions] = useState({
-    ignoreQuantity: false,
-    ignoreRevision: false,
+    ignoreRevision: true,
     ignoreRules: false,
   });
 
@@ -179,6 +178,9 @@ const App: React.FC = () => {
   const [profileName, setProfileName] = useState('');
 
   const [theme, setTheme] = useLocalStorage<'light' | 'dark'>('theme', 'light');
+
+  const originalFileRef = useRef<HTMLInputElement>(null);
+  const partialFileRef = useRef<HTMLInputElement>(null);
 
   React.useEffect(() => {
     const root = window.document.documentElement;
@@ -244,7 +246,7 @@ const App: React.FC = () => {
     currentMappings: Mappings,
     currentRules: TransformationRule[] | null,
     aggregate: boolean,
-    options: { ignoreQuantity: boolean, ignoreRevision: boolean, ignoreRules: boolean }
+    options: { ignoreRevision: boolean, ignoreRules: boolean }
   ): ComparisonResult[] => {
       let processedOriginalData = currentOriginalData;
       let processedPartialData = currentPartialData;
@@ -290,7 +292,7 @@ const App: React.FC = () => {
     }, 50);
   }, [isMappingComplete, originalData, partialData, mappings, rules, comparisonOptions]);
 
-  const handleComparisonOptionsChange = (newOption: { ignoreQuantity?: boolean; ignoreRevision?: boolean; ignoreRules?: boolean }) => {
+  const handleComparisonOptionsChange = (newOption: { ignoreRevision?: boolean; ignoreRules?: boolean }) => {
     const updatedOptions = { ...comparisonOptions, ...newOption };
     setComparisonOptions(updatedOptions);
 
@@ -401,6 +403,50 @@ const App: React.FC = () => {
     setRules(null);
     setMappings(INITIAL_MAPPINGS);
     setError(null);
+  };
+
+  const handleOriginalFilenameClick = () => {
+    originalFileRef.current?.click();
+  };
+
+  const handlePartialFilenameClick = () => {
+    partialFileRef.current?.click();
+  };
+
+  const handleReplaceFile = async (
+    type: 'original' | 'partial',
+    e: React.ChangeEvent<HTMLInputElement>
+  ) => {
+    const newFile = e.target.files?.[0];
+    if (!newFile) return;
+
+    setIsLoading(true);
+    setError(null);
+
+    try {
+      const newParsedData = await parseFile(newFile, type === 'original' ? skipRowsOriginal : skipRowsPartial);
+      const newMapping = autoMapColumns(newParsedData.headers);
+      
+      // All async operations successful, now update state
+      setResults(null);
+      if (type === 'original') {
+        setOriginalFile(newFile);
+        setOriginalData(newParsedData);
+        setMappings(prev => ({ ...prev, original: newMapping }));
+      } else { // partial
+        setPartialFile(newFile);
+        setPartialData(newParsedData);
+        setMappings(prev => ({ ...prev, partial: newMapping }));
+      }
+      setStep(AppStep.MAPPING);
+
+    } catch (err) {
+      setError(err instanceof Error ? err.message : String(err));
+      // Don't change any state if parsing fails, just show the error.
+    } finally {
+      setIsLoading(false);
+      if (e.target) e.target.value = '';
+    }
   };
 
   const saveProfile = () => {
@@ -556,6 +602,20 @@ const App: React.FC = () => {
 
   return (
     <div className="min-h-screen bg-slate-100 dark:bg-slate-900 font-sans transition-colors duration-300">
+      <input
+        type="file"
+        ref={originalFileRef}
+        onChange={(e) => handleReplaceFile('original', e)}
+        className="hidden"
+        accept=".xls,.xlsx,.xlsm,.csv,.tsv"
+      />
+      <input
+        type="file"
+        ref={partialFileRef}
+        onChange={(e) => handleReplaceFile('partial', e)}
+        className="hidden"
+        accept=".xls,.xlsx,.xlsm,.csv,.tsv"
+      />
       <header className="bg-white dark:bg-slate-800/50 dark:backdrop-blur-sm shadow-sm sticky top-0 z-40 transition-colors duration-300">
         <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center gap-4">
             <div className="flex-1 min-w-0">
@@ -563,9 +623,23 @@ const App: React.FC = () => {
                 Confronto Distinte Base (BOM)
                 </h1>
                 {originalFile && partialFile && step !== AppStep.UPLOAD && (
-                    <p className="text-sm text-slate-500 dark:text-slate-400 truncate" title={`${originalFile.name} vs ${partialFile.name}`}>
-                        {originalFile.name} vs {partialFile.name}
-                    </p>
+                    <div className="text-sm text-slate-500 dark:text-slate-400 truncate flex items-center gap-2 flex-wrap">
+                        <button
+                          onClick={handleOriginalFilenameClick}
+                          className="hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-1 py-0.5"
+                          title={`Sostituisci: ${originalFile.name}`}
+                        >
+                            <span className="font-medium text-slate-600 dark:text-slate-300">Cliente:</span> {originalFile.name}
+                        </button>
+                        <span className="text-slate-400 dark:text-slate-500">vs</span>
+                        <button
+                          onClick={handlePartialFilenameClick}
+                          className="hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-1 py-0.5"
+                          title={`Sostituisci: ${partialFile.name}`}
+                        >
+                            <span className="font-medium text-slate-600 dark:text-slate-300">Gestionale:</span> {partialFile.name}
+                        </button>
+                    </div>
                 )}
             </div>
             <button

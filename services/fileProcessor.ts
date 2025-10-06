@@ -17,7 +17,10 @@ export const parseRulesFile = async (file: File): Promise<TransformationRule[]> 
           defval: '',
         });
 
-        const rules: TransformationRule[] = jsonData.map(row => {
+        // FIX: Explicitly type the return of the map function to avoid type widening.
+        // This ensures the created objects conform to the TransformationRule union type,
+        // resolving both the assignment and the type predicate errors.
+        const rules: TransformationRule[] = jsonData.map((row): TransformationRule | null => {
           const type = String(row['Tipo'] || '').trim().toUpperCase();
           const codesOrDesc = String(row['Codici da unire'] || '').trim();
           
@@ -30,9 +33,9 @@ export const parseRulesFile = async (file: File): Promise<TransformationRule[]> 
             const resultCode = String(row['Codice risultante']);
             const resultDescription = String(row['Descrizione risultante']);
             if (!resultCode || sourceCodes.length < 1) return null;
-            return { type: RuleType.MERGE, sourceCodes, resultCode, resultDescription };
+            return { type: RuleType.MERGE, sourceCodes, resultCode, resultDescription, enabled: true };
           } else if (type === RuleType.EXCLUDE) {
-            return { type: RuleType.EXCLUDE, value: codesOrDesc };
+            return { type: RuleType.EXCLUDE, value: codesOrDesc, enabled: true };
           }
           return null;
         }).filter((r): r is TransformationRule => r !== null);
@@ -115,8 +118,10 @@ export const applyTransformationRules = (
 ): ParsedFile => {
   let data = [...parsedFile.data];
   
-  const excludeRules = rules.filter((r): r is Extract<TransformationRule, {type: RuleType.EXCLUDE}> => r.type === RuleType.EXCLUDE);
-  const mergeRules = rules.filter((r): r is Extract<TransformationRule, {type: RuleType.MERGE}> => r.type === RuleType.MERGE);
+  const activeRules = rules.filter(r => r.enabled !== false);
+
+  const excludeRules = activeRules.filter((r): r is Extract<TransformationRule, {type: RuleType.EXCLUDE}> => r.type === RuleType.EXCLUDE);
+  const mergeRules = activeRules.filter((r): r is Extract<TransformationRule, {type: RuleType.MERGE}> => r.type === RuleType.MERGE);
 
   // 1. Apply EXCLUDE rules
   if (excludeRules.length > 0) {
@@ -200,7 +205,7 @@ export const compareData = (
   partialData: ParsedFile,
   mappings: Mappings,
   aggregate: boolean,
-  options: { ignoreQuantity: boolean; ignoreRevision: boolean }
+  options: { ignoreRevision: boolean }
 ): ComparisonResult[] => {
   const { original: originalMap, partial: partialMap } = mappings;
 
@@ -251,18 +256,18 @@ export const compareData = (
     }
   }
   
-  // 2. Prepare original data (aggregate if needed).
-  const dataToIterate: RowData[] = (() => {
-    if (!aggregate) {
-      return originalData.data;
-    }
-    
+  // 2. Iterate over original data, compare, and generate main results.
+  const processedPartialKeysForMainLoop = new Set<string>();
+  const resultsFromOriginal: ComparisonResult[] = [];
+
+  if (aggregate) {
+    // AGGREGATED PATH: Group original rows, but decide to show aggregated or detailed view based on quantity match.
     const originalAggregatedData = new Map<string, { quantity: number; description: string | null; revision: string | null; rows: RowData[] }>();
     for (const row of originalData.data) {
-        const code = String(row[originalMap.code]);
-        const quantity = normalizeQuantity(row[originalMap.quantity]);
+        const code = String(row[originalMap.code!]);
+        const quantity = normalizeQuantity(row[originalMap.quantity!]);
         const description = originalMap.description ? String(row[originalMap.description]) : null;
-        const revision = originalMap.revision ? String(row[originalMap.revision]) : null;
+        const revision = originalMap.revision ? String(row[originalMap.revision!]) : null;
         
         if(code) {
             const key = getKey(code, revision);
@@ -275,89 +280,233 @@ export const compareData = (
             }
         }
     }
-    return Array.from(originalAggregatedData.values()).map((data) => ({
-      ...data.rows[0], // Use first row as a template
-      [originalMap.code!]: data.rows[0][originalMap.code!], 
-      [originalMap.quantity!]: data.quantity,
-      ...(originalMap.description && data.description ? { [originalMap.description]: data.description } : {}),
-      ...(originalMap.revision && data.revision ? { [originalMap.revision]: data.revision } : {}),
-    }));
-  })();
 
-  // 3. Iterate over original data, compare, and track processed codes.
-  const processedPartialKeys = new Set<string>();
-  const resultsFromOriginal: ComparisonResult[] = [];
+    for (const [key, aggregatedInfo] of originalAggregatedData.entries()) {
+        const originalCode = String(aggregatedInfo.rows[0][originalMap.code!]);
+        const exactMatch = partialMapData.get(key);
 
-  for (const originalRow of dataToIterate) {
-    const originalCode = String(originalRow[originalMap.code!]);
-    const originalQuantityRaw = originalRow[originalMap.quantity!];
-    const originalQuantity = normalizeQuantity(originalQuantityRaw);
-    const originalDescription = originalMap.description ? String(originalRow[originalMap.description!]) : null;
-    const originalRevision = originalMap.revision ? String(originalRow[originalMap.revision!]) : null;
+        if (exactMatch) {
+            processedPartialKeysForMainLoop.add(key);
+            const { quantity: partialQuantity, description: partialDescription, revision: partialRevision } = exactMatch;
+            const quantityDiff = Math.abs(aggregatedInfo.quantity - partialQuantity);
+            const areQuantitiesEqual = quantityDiff < 1e-6;
 
-    if (!originalCode) continue;
+            if (areQuantitiesEqual) {
+                // Quantities match in aggregate, so show one aggregated row.
+                resultsFromOriginal.push({
+                    originalCode,
+                    originalQuantity: aggregatedInfo.quantity,
+                    originalDescription: aggregatedInfo.description,
+                    originalRevision: aggregatedInfo.revision,
+                    partialCode: originalCode, 
+                    partialQuantity, 
+                    partialDescription, 
+                    partialRevision, 
+                    status: ResultStatus.QUANTITY_EQUAL,
+                });
+            } else {
+                // Quantities differ in aggregate. "Explode" back to individual rows and re-compare each one
+                // to get a detailed breakdown, mimicking the non-aggregated view for this specific code.
+                aggregatedInfo.rows.forEach(originalRow => {
+                    const oCode = String(originalRow[originalMap.code!]);
+                    const oQtyRaw = originalRow[originalMap.quantity!];
+                    const oQty = normalizeQuantity(oQtyRaw);
+                    const oDesc = originalMap.description ? String(originalRow[originalMap.description!]) : null;
+                    const oRev = originalMap.revision ? String(originalRow[originalMap.revision!]) : null;
 
-    if (originalQuantity === null) {
-      resultsFromOriginal.push({
-        originalCode, originalQuantity: String(originalQuantityRaw), originalDescription, originalRevision,
-        partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null,
-        status: ResultStatus.INVALID_QUANTITY,
-      });
-      continue;
+                    let status: ResultStatus;
+                    if (oQty === null) {
+                        status = ResultStatus.INVALID_QUANTITY;
+                    } else {
+                        // Re-compare this individual row's quantity with the aggregated partial quantity.
+                        const individualQuantityDiff = Math.abs(oQty - partialQuantity);
+                        status = (individualQuantityDiff < 1e-6)
+                            ? ResultStatus.QUANTITY_EQUAL
+                            : ResultStatus.QUANTITY_DIFFERENT;
+                    }
+
+                    resultsFromOriginal.push({
+                        originalCode: oCode, 
+                        originalQuantity: oQty === null ? String(oQtyRaw) : oQty, 
+                        originalDescription: oDesc, 
+                        originalRevision: oRev,
+                        partialCode: originalCode, 
+                        partialQuantity, 
+                        partialDescription, 
+                        partialRevision,
+                        status: status,
+                    });
+                });
+            }
+        } else {
+            const otherRevisions = !options.ignoreRevision ? partialCodeToRevisions.get(originalCode) : undefined;
+            if (otherRevisions && otherRevisions.length > 0) {
+                const firstOtherRevision = otherRevisions[0];
+                resultsFromOriginal.push({
+                    originalCode,
+                    originalQuantity: aggregatedInfo.quantity,
+                    originalDescription: aggregatedInfo.description,
+                    originalRevision: aggregatedInfo.revision,
+                    partialCode: originalCode,
+                    partialQuantity: firstOtherRevision.quantity,
+                    partialDescription: firstOtherRevision.description,
+                    partialRevision: firstOtherRevision.revision,
+                    status: ResultStatus.REVISION_DIFFERENT,
+                });
+                otherRevisions.forEach(rev => processedPartialKeysForMainLoop.add(getKey(originalCode, rev.revision)));
+            } else {
+                 // ABSENT: Group valid rows and show invalid ones separately.
+                const validRows = aggregatedInfo.rows.filter(r => normalizeQuantity(r[originalMap.quantity!]) !== null);
+                const invalidRows = aggregatedInfo.rows.filter(r => normalizeQuantity(r[originalMap.quantity!]) === null);
+
+                if (validRows.length > 0) {
+                    const totalQuantity = validRows.reduce((sum, row) => sum + (normalizeQuantity(row[originalMap.quantity!]) || 0), 0);
+                    resultsFromOriginal.push({
+                        originalCode,
+                        originalQuantity: totalQuantity,
+                        originalDescription: aggregatedInfo.description, // Use description from the aggregated group
+                        originalRevision: aggregatedInfo.revision,     // Use revision from the aggregated group
+                        partialCode: null,
+                        partialQuantity: null,
+                        partialDescription: null,
+                        partialRevision: null,
+                        status: ResultStatus.ABSENT,
+                    });
+                }
+                
+                invalidRows.forEach(row => {
+                    resultsFromOriginal.push({
+                        originalCode: String(row[originalMap.code!]), 
+                        originalQuantity: String(row[originalMap.quantity!]), 
+                        originalDescription: originalMap.description ? String(row[originalMap.description!]) : null, 
+                        originalRevision: originalMap.revision ? String(row[originalMap.revision!]) : null,
+                        partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null,
+                        status: ResultStatus.INVALID_QUANTITY,
+                    });
+                });
+            }
+        }
     }
-    
-    const key = getKey(originalCode, originalRevision);
-    const exactMatch = partialMapData.get(key);
+  } else {
+    // NON-AGGREGATED PATH: One result per row, but ABSENT items are grouped.
+    const absentItemsAggregator = new Map<string, { quantity: number; firstRow: RowData; }>();
 
-    if (exactMatch) {
-      // Exact match on code and revision (or just code if revision is ignored)
-      processedPartialKeys.add(key);
-      const { quantity: partialQuantity, description: partialDescription, revision: partialRevision } = exactMatch;
-      
-      const quantityDiff = Math.abs(originalQuantity - partialQuantity);
-      const status = (options.ignoreQuantity || quantityDiff < 1e-6) ? ResultStatus.QUANTITY_EQUAL : ResultStatus.QUANTITY_DIFFERENT;
+    for (const originalRow of originalData.data) {
+        const originalCode = String(originalRow[originalMap.code!]);
+        const originalQuantityRaw = originalRow[originalMap.quantity!];
+        const originalQuantity = normalizeQuantity(originalQuantityRaw);
+        const originalDescription = originalMap.description ? String(originalRow[originalMap.description!]) : null;
+        const originalRevision = originalMap.revision ? String(originalRow[originalMap.revision!]) : null;
 
-      resultsFromOriginal.push({
-        originalCode, originalQuantity, originalDescription, originalRevision,
-        partialCode: originalCode, partialQuantity, partialDescription, partialRevision,
-        status,
-      });
-    } else {
-      // No exact match, check for same code with different revision (only if we are NOT ignoring revisions)
-      const otherRevisions = !options.ignoreRevision ? partialCodeToRevisions.get(originalCode) : undefined;
-      
-      if (otherRevisions && otherRevisions.length > 0) {
-        // Revision mismatch found
-        const firstOtherRevision = otherRevisions[0];
+        if (!originalCode) continue;
+
+        if (originalQuantity === null) {
+          resultsFromOriginal.push({
+            originalCode, originalQuantity: String(originalQuantityRaw), originalDescription, originalRevision,
+            partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null,
+            status: ResultStatus.INVALID_QUANTITY,
+          });
+          continue;
+        }
+        
+        const key = getKey(originalCode, originalRevision);
+        const exactMatch = partialMapData.get(key);
+
+        if (exactMatch) {
+          processedPartialKeysForMainLoop.add(key);
+          const { quantity: partialQuantity, description: partialDescription, revision: partialRevision } = exactMatch;
+          
+          const quantityDiff = Math.abs(originalQuantity - partialQuantity);
+          const status = (quantityDiff < 1e-6) ? ResultStatus.QUANTITY_EQUAL : ResultStatus.QUANTITY_DIFFERENT;
+
+          resultsFromOriginal.push({
+            originalCode, originalQuantity, originalDescription, originalRevision,
+            partialCode: originalCode, partialQuantity, partialDescription, partialRevision,
+            status,
+          });
+        } else {
+          const otherRevisions = !options.ignoreRevision ? partialCodeToRevisions.get(originalCode) : undefined;
+          
+          if (otherRevisions && otherRevisions.length > 0) {
+            const firstOtherRevision = otherRevisions[0];
+            resultsFromOriginal.push({
+              originalCode, originalQuantity, originalDescription, originalRevision,
+              partialCode: originalCode,
+              partialQuantity: firstOtherRevision.quantity,
+              partialDescription: firstOtherRevision.description,
+              partialRevision: firstOtherRevision.revision,
+              status: ResultStatus.REVISION_DIFFERENT,
+            });
+
+            otherRevisions.forEach(rev => {
+                processedPartialKeysForMainLoop.add(getKey(originalCode, rev.revision));
+            });
+
+          } else {
+            // ABSENT: Add to aggregator instead of pushing directly.
+            // Note: originalQuantity is guaranteed to be a number here due to the check at the top of the loop.
+            if (absentItemsAggregator.has(key)) {
+                const existing = absentItemsAggregator.get(key)!;
+                existing.quantity += originalQuantity!;
+            } else {
+                absentItemsAggregator.set(key, {
+                    quantity: originalQuantity!,
+                    firstRow: originalRow,
+                });
+            }
+          }
+        }
+    }
+     // After the main loop, add the aggregated absent items to the results
+    for (const [key, aggregatedInfo] of absentItemsAggregator.entries()) {
+        const { quantity, firstRow } = aggregatedInfo;
+        const originalCode = String(firstRow[originalMap.code!]);
+        const originalDescription = originalMap.description ? String(firstRow[originalMap.description!]) : null;
+        const originalRevision = originalMap.revision ? String(firstRow[originalMap.revision!]) : null;
+
         resultsFromOriginal.push({
-          originalCode, originalQuantity, originalDescription, originalRevision,
-          partialCode: originalCode,
-          partialQuantity: firstOtherRevision.quantity,
-          partialDescription: firstOtherRevision.description,
-          partialRevision: firstOtherRevision.revision,
-          status: ResultStatus.REVISION_DIFFERENT,
+            originalCode,
+            originalQuantity: quantity,
+            originalDescription,
+            originalRevision,
+            partialCode: null,
+            partialQuantity: null,
+            partialDescription: null,
+            partialRevision: null,
+            status: ResultStatus.ABSENT,
         });
+    }
+  }
+  
+  // 3. Build a definitive set of processed partial keys based on an aggregated view of the original data.
+  //    This ensures the "Absent in Original" calculation is always consistent, regardless of display mode.
+  const definitiveProcessedPartialKeys = new Set<string>();
+  const originalAggregatedForCheck = new Map<string, { code: string; revision: string | null }>();
+  for (const row of originalData.data) {
+    const code = String(row[originalMap.code!]);
+    if (!code) continue;
+    const revision = originalMap.revision ? String(row[originalMap.revision!]) : null;
+    const key = getKey(code, revision);
+    if (!originalAggregatedForCheck.has(key)) {
+        originalAggregatedForCheck.set(key, { code, revision });
+    }
+  }
 
-        // Mark all revisions of this code as processed to avoid them appearing as "Absent in Original"
-        otherRevisions.forEach(rev => {
-            processedPartialKeys.add(getKey(originalCode, rev.revision));
-        });
-
+  for (const [key, data] of originalAggregatedForCheck.entries()) {
+      if (partialMapData.has(key)) {
+          definitiveProcessedPartialKeys.add(key);
       } else {
-        // Code is completely absent in partial data
-        resultsFromOriginal.push({
-          originalCode, originalQuantity, originalDescription, originalRevision,
-          partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null,
-          status: ResultStatus.ABSENT,
-        });
+          const otherRevisions = !options.ignoreRevision ? partialCodeToRevisions.get(data.code) : undefined;
+          if (otherRevisions && otherRevisions.length > 0) {
+              otherRevisions.forEach(rev => definitiveProcessedPartialKeys.add(getKey(data.code, rev.revision)));
+          }
       }
-    }
   }
   
   // 4. Any items in the partial map not processed are "ABSENT_IN_ORIGINAL".
   const resultsFromPartial: ComparisonResult[] = [];
   for (const [key, data] of partialMapData.entries()) {
-    if (!processedPartialKeys.has(key)) {
+    if (!definitiveProcessedPartialKeys.has(key)) { // Use the definitive set for this check
       const [code] = key.split('::');
       resultsFromPartial.push({
           originalCode: null, originalQuantity: null, originalDescription: null, originalRevision: null,

@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import type { TransformationRule } from '../types';
 import { RuleType } from '../types';
@@ -30,6 +29,15 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
         return newRules;
     });
   };
+  
+  const handleToggleRule = (index: number) => {
+    setEditableRules(currentRules => {
+        const newRules = [...currentRules];
+        const rule = newRules[index];
+        rule.enabled = !(rule.enabled ?? true);
+        return newRules;
+    });
+  };
 
   const handleRemoveRule = (index: number) => {
     setEditableRules(currentRules => currentRules.filter((_, i) => i !== index));
@@ -38,9 +46,9 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
   const handleAddRule = (type: RuleType) => {
     let newRule: TransformationRule;
     if (type === RuleType.MERGE) {
-      newRule = { type: RuleType.MERGE, sourceCodes: [], resultCode: '', resultDescription: '' };
+      newRule = { type: RuleType.MERGE, sourceCodes: [], resultCode: '', resultDescription: '', enabled: true };
     } else {
-      newRule = { type: RuleType.EXCLUDE, value: '' };
+      newRule = { type: RuleType.EXCLUDE, value: '', enabled: true };
     }
     setEditableRules(currentRules => [...currentRules, newRule]);
   };
@@ -71,13 +79,28 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
         <main className="p-6 overflow-y-auto space-y-6">
           {editableRules.map((rule, index) => (
             <div key={index} className="bg-slate-50 dark:bg-slate-700/50 border border-slate-200 dark:border-slate-600 rounded-lg p-4 relative">
-              <button
-                onClick={() => handleRemoveRule(index)}
-                className="absolute top-2 right-2 p-1 rounded-full hover:bg-red-100 text-red-500"
-                title="Rimuovi regola"
-              >
-                <XCircleIcon className="w-5 h-5" />
-              </button>
+                <div className="absolute top-2 right-2 flex items-center gap-2">
+                    <label htmlFor={`rule-toggle-${index}`} className="flex items-center cursor-pointer" title={ (rule.enabled ?? true) ? 'Regola attiva' : 'Regola disattivata'}>
+                        <div className="relative">
+                            <input 
+                                type="checkbox" 
+                                id={`rule-toggle-${index}`} 
+                                className="sr-only peer" 
+                                checked={rule.enabled ?? true}
+                                onChange={() => handleToggleRule(index)} 
+                            />
+                            <div className="w-10 h-6 bg-slate-300 rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:border-gray-300 after:border after:rounded-full after:h-5 after:w-5 after:transition-all dark:border-gray-600 peer-checked:bg-indigo-600"></div>
+                        </div>
+                    </label>
+                    <button
+                        onClick={() => handleRemoveRule(index)}
+                        className="p-1 rounded-full hover:bg-red-100 text-red-500"
+                        title="Rimuovi regola"
+                    >
+                        <XCircleIcon className="w-5 h-5" />
+                    </button>
+                </div>
+              <div className={`transition-opacity ${(rule.enabled ?? true) ? 'opacity-100' : 'opacity-40 pointer-events-none'}`}>
               {rule.type === RuleType.MERGE ? (
                 <div className="space-y-3">
                   <span className="font-semibold text-indigo-700 bg-indigo-100 dark:bg-indigo-900/50 dark:text-indigo-300 px-2 py-1 rounded-md text-sm">{RuleType.MERGE}</span>
@@ -127,6 +150,7 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
                    </div>
                 </div>
               )}
+              </div>
             </div>
           ))}
           <div className="flex items-center gap-4 border-t border-slate-200 dark:border-slate-700 pt-4">

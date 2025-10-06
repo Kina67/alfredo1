@@ -14,8 +14,8 @@ interface ResultsViewProps {
   onRemoveRules: () => void;
   rulesFileName?: string | null;
   onEditRules: () => void;
-  comparisonOptions: { ignoreQuantity: boolean; ignoreRevision: boolean; ignoreRules: boolean };
-  onComparisonOptionsChange: (options: { ignoreQuantity?: boolean; ignoreRevision?: boolean; ignoreRules?: boolean }) => void;
+  comparisonOptions: { ignoreRevision: boolean; ignoreRules: boolean };
+  onComparisonOptionsChange: (options: { ignoreRevision?: boolean; ignoreRules?: boolean }) => void;
 }
 
 type ColumnKey = 'status' | 'originalCode' | 'originalQuantity' | 'originalDescription' | 'originalRevision' | 'partialCode' | 'partialQuantity' | 'partialDescription' | 'partialRevision';
@@ -84,9 +84,24 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
       return acc;
     }, {} as Record<ResultStatus, number>);
   }, [results]);
+
+  const totalDisplayValue = useMemo(() => {
+    if (!isAggregated) {
+      return results.length; // In detail view, this is the total number of rows
+    }
+    // In aggregate view, count unique codes ignoring revisions
+    const uniqueCodes = new Set<string | number>();
+    results.forEach(r => {
+      const code = r.originalCode ?? r.partialCode;
+      if (code !== null && code !== undefined) {
+        uniqueCodes.add(code);
+      }
+    });
+    return uniqueCodes.size;
+  }, [isAggregated, results]);
   
   const badgeConfigs: { label: string; status: ResultStatus | 'ALL'; value: number; color: string }[] = [
-    { label: isAggregated ? 'TOTALE CODICI' : 'TOTALE RIGHE', status: 'ALL', value: results.length, color: "bg-green-100 text-green-900 dark:bg-green-800/40 dark:text-green-100" },
+    { label: isAggregated ? 'TOTALE CODICI' : 'TOTALE RIGHE', status: 'ALL', value: totalDisplayValue, color: "bg-green-100 text-green-900 dark:bg-green-800/40 dark:text-green-100" },
     { label: ResultStatus.ABSENT_IN_ORIGINAL, status: ResultStatus.ABSENT_IN_ORIGINAL, value: stats[ResultStatus.ABSENT_IN_ORIGINAL] || 0, color: "bg-orange-100 text-orange-900 dark:bg-orange-800/40 dark:text-orange-100" },
     { label: ResultStatus.ABSENT, status: ResultStatus.ABSENT, value: stats[ResultStatus.ABSENT] || 0, color: "bg-red-100 text-red-900 dark:bg-red-800/40 dark:text-red-100" },
     { label: ResultStatus.QUANTITY_DIFFERENT, status: ResultStatus.QUANTITY_DIFFERENT, value: stats[ResultStatus.QUANTITY_DIFFERENT] || 0, color: "bg-yellow-100 text-yellow-900 dark:bg-yellow-800/40 dark:text-yellow-100" },
@@ -235,7 +250,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
                 <button onClick={onToggleAggregate} className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition">
                     <span>{isAggregated ? 'Mostra Dettaglio Righe' : 'Aggrega per Codice'}</span>
                 </button>
-                <button onClick={() => exportToExcel(results, stats)} className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+                <button onClick={() => exportToExcel(results, stats, isAggregated, totalDisplayValue)} className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
                     <DownloadIcon className="w-5 h-5" />
                     <span>Esporta Excel</span>
                 </button>
@@ -293,15 +308,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
           <div className="border-t border-slate-200 dark:border-slate-700 mt-4 pt-3 flex items-center gap-6 text-sm">
             <span className="font-semibold text-slate-700 dark:text-slate-200 shrink-0">Opzioni Confronto:</span>
             <div className="flex items-center gap-x-6 gap-y-2 flex-wrap">
-              <label className="flex items-center cursor-pointer">
-                <input
-                  type="checkbox"
-                  checked={comparisonOptions.ignoreQuantity}
-                  onChange={(e) => onComparisonOptionsChange({ ignoreQuantity: e.target.checked })}
-                  className="h-4 w-4 rounded border-gray-300 dark:border-slate-500 text-indigo-600 focus:ring-indigo-500 bg-transparent"
-                />
-                <span className="ml-2 text-slate-700 dark:text-slate-300">Ignora Quantità</span>
-              </label>
               <label className="flex items-center cursor-pointer">
                 <input
                   type="checkbox"

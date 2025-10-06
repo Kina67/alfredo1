@@ -63,10 +63,12 @@ export type TransformationRule =
       sourceCodes: string[];
       resultCode: string;
       resultDescription: string;
+      enabled?: boolean;
     }
   | {
       type: RuleType.EXCLUDE;
       // Il valore grezzo dalla colonna 'Codici da unire' per una regola di esclusione.
       // Può essere un codice, codici separati da '+', o una stringa di filtro per la descrizione.
       value: string;
+      enabled?: boolean;
     };
