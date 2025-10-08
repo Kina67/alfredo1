@@ -1,4 +1,4 @@
-import type { ComparisonResult, ResultStatus } from '../types';
+import type { ComparisonResult, ResultStatus, Mappings } from '../types';
 import { ResultStatus as EResultStatus } from '../types';
 
 declare var XLSX: any;
@@ -39,6 +39,8 @@ export const exportToExcel = (
   stats: Record<ResultStatus, number>,
   isAggregated: boolean,
   totalValue: number,
+  mappings: Mappings,
+  partialHeaders: string[],
   filename: string = 'confronto_bom.xlsx'
 ) => {
   // 1. Dati per il foglio di Riepilogo
@@ -86,8 +88,36 @@ export const exportToExcel = (
       XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
     }
   }
+  
+  // 5. [NUOVO] Foglio speciale per i codici mancanti nel formato del gestionale
+  const absentInGestionale = results.filter(r => r.status === EResultStatus.ABSENT);
+  if (absentInGestionale.length > 0 && partialHeaders.length > 0 && mappings.partial.code && mappings.partial.quantity) {
+      const exportData = absentInGestionale.map(result => {
+          const row: { [key: string]: any } = {};
+          // Popola solo le colonne mappate del gestionale con i dati del file originale
+          if (mappings.partial.code) {
+              row[mappings.partial.code] = result.originalCode;
+          }
+          if (mappings.partial.quantity) {
+              row[mappings.partial.quantity] = result.originalQuantity;
+          }
+          if (mappings.partial.description && result.originalDescription) {
+              row[mappings.partial.description] = result.originalDescription;
+          }
+          if (mappings.partial.revision && result.originalRevision) {
+              row[mappings.partial.revision] = result.originalRevision;
+          }
+          return row;
+      });
 
-  // 5. Scrittura del file
+      // Crea il foglio usando i dati mappati e specificando le intestazioni del file gestionale
+      // per garantire l'ordine corretto e la presenza di tutte le colonne.
+      const worksheet = XLSX.utils.json_to_sheet(exportData, { header: partialHeaders });
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Mancanti_per_Gestionale');
+  }
+
+
+  // 6. Scrittura del file
   XLSX.writeFile(workbook, filename);
 };
 

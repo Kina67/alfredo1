@@ -165,7 +165,7 @@ const App: React.FC = () => {
   
   const [skipRowsOriginal, setSkipRowsOriginal] = useState(0);
   const [skipRowsPartial, setSkipRowsPartial] = useState(0);
-  const [aggregateCodes, setAggregateCodes] = useState(false);
+  const [aggregateCodes, setAggregateCodes] = useState(true);
   const [comparisonOptions, setComparisonOptions] = useState({
     ignoreRevision: true,
     ignoreRules: false,
@@ -377,7 +377,6 @@ const App: React.FC = () => {
   }, [originalData, partialData, mappings, aggregateCodes, comparisonOptions]);
 
   const handleCompare = () => runComparison(aggregateCodes);
-  const handleToggleAggregation = () => runComparison(!aggregateCodes);
   
   const handleReset = () => {
     setStep(AppStep.UPLOAD);
@@ -390,7 +389,6 @@ const App: React.FC = () => {
     setError(null);
     setSkipRowsOriginal(0);
     setSkipRowsPartial(0);
-    setAggregateCodes(false);
     setRulesFile(null);
     setRules(null);
     setRulesFileDisplayName(null);
@@ -424,25 +422,27 @@ const App: React.FC = () => {
     setError(null);
 
     try {
-      const newParsedData = await parseFile(newFile, type === 'original' ? skipRowsOriginal : skipRowsPartial);
-      const newMapping = autoMapColumns(newParsedData.headers);
+      const skipRows = type === 'original' ? skipRowsOriginal : skipRowsPartial;
+      const newParsedData = await parseFile(newFile, skipRows);
       
-      // All async operations successful, now update state
+      const updatedOriginalData = type === 'original' ? newParsedData : originalData!;
+      const updatedPartialData = type === 'partial' ? newParsedData : partialData!;
+
+      const newMappings = smartAutoMap(updatedOriginalData, updatedPartialData);
+      
       setResults(null);
       if (type === 'original') {
         setOriginalFile(newFile);
         setOriginalData(newParsedData);
-        setMappings(prev => ({ ...prev, original: newMapping }));
-      } else { // partial
+      } else {
         setPartialFile(newFile);
         setPartialData(newParsedData);
-        setMappings(prev => ({ ...prev, partial: newMapping }));
       }
+      setMappings(newMappings);
       setStep(AppStep.MAPPING);
 
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
-      // Don't change any state if parsing fails, just show the error.
     } finally {
       setIsLoading(false);
       if (e.target) e.target.value = '';
@@ -520,18 +520,9 @@ const App: React.FC = () => {
                     {/* Left side: Options & Profiles */}
                     <div className="space-y-4 w-full md:w-auto flex-grow">
                     <h3 className="text-lg font-semibold text-slate-800 dark:text-slate-100">Opzioni & Profili</h3>
-                    <div className="relative flex items-center">
-                        <input
-                            type="checkbox"
-                            id="aggregate"
-                            checked={aggregateCodes}
-                            onChange={(e) => setAggregateCodes(e.target.checked)}
-                            className="h-4 w-4 rounded border-gray-300 dark:border-slate-500 text-indigo-600 focus:ring-indigo-500 bg-transparent"
-                        />
-                        <label htmlFor="aggregate" className="ml-3 block text-sm font-medium text-gray-700 dark:text-slate-300">
-                            Aggrega quantità per codici duplicati nel file Cliente
-                        </label>
-                    </div>
+                    <p className="text-sm text-gray-700 dark:text-slate-300">
+                        La quantità per codici duplicati nel file Cliente viene sempre aggregata.
+                    </p>
                     <div className="flex flex-wrap items-center gap-2">
                         <select onChange={(e) => loadProfile(e.target.value)} defaultValue="" className="p-2 border border-slate-400 dark:border-slate-500 rounded-md text-sm sm:flex-grow-0 flex-grow bg-white dark:bg-slate-700 text-slate-900 dark:text-slate-200">
                             <option value="" disabled>Carica un profilo</option>
@@ -564,12 +555,11 @@ const App: React.FC = () => {
           </div>
         );
       case AppStep.RESULTS:
-        if (!results) return null;
+        if (!results || !partialData) return null;
         return (
             <div>
                  <ResultsView 
                     results={results} 
-                    onToggleAggregate={handleToggleAggregation}
                     isAggregated={aggregateCodes}
                     originalFileName={originalFile?.name}
                     partialFileName={partialFile?.name}
@@ -579,6 +569,8 @@ const App: React.FC = () => {
                     onEditRules={() => setIsRuleEditorOpen(true)}
                     comparisonOptions={comparisonOptions}
                     onComparisonOptionsChange={handleComparisonOptionsChange}
+                    mappings={mappings}
+                    partialHeaders={partialData.headers}
                  />
                  {rules !== null && (
                     <RuleEditorModal

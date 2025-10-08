@@ -1,12 +1,11 @@
 import React, { useState, useMemo, useRef, useEffect, useCallback } from 'react';
-import type { ComparisonResult } from '../types';
+import type { ComparisonResult, Mappings } from '../types';
 import { ResultStatus } from '../types';
 import { exportToCsv, exportToExcel } from '../services/exporter';
 import { CheckCircleIcon, ExclamationCircleIcon, XCircleIcon, DownloadIcon, UploadIcon, FileIcon, EditIcon, ViewColumnsIcon } from './icons';
 
 interface ResultsViewProps {
   results: ComparisonResult[];
-  onToggleAggregate: () => void;
   isAggregated: boolean;
   originalFileName?: string;
   partialFileName?: string;
@@ -16,6 +15,8 @@ interface ResultsViewProps {
   onEditRules: () => void;
   comparisonOptions: { ignoreRevision: boolean; ignoreRules: boolean };
   onComparisonOptionsChange: (options: { ignoreRevision?: boolean; ignoreRules?: boolean }) => void;
+  mappings: Mappings;
+  partialHeaders: string[];
 }
 
 type ColumnKey = 'status' | 'originalCode' | 'originalQuantity' | 'originalDescription' | 'originalRevision' | 'partialCode' | 'partialQuantity' | 'partialDescription' | 'partialRevision';
@@ -58,7 +59,7 @@ const statusConfig = {
     [ResultStatus.INVALID_QUANTITY]: { icon: <ExclamationCircleIcon className="w-5 h-5 text-purple-500" />, color: 'bg-purple-100 text-purple-800 dark:bg-purple-900/50 dark:text-purple-300' },
 };
 
-const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, isAggregated, originalFileName, partialFileName, onApplyRulesFile, onRemoveRules, rulesFileName, onEditRules, comparisonOptions, onComparisonOptionsChange }) => {
+const ResultsView: React.FC<ResultsViewProps> = ({ results, isAggregated, originalFileName, partialFileName, onApplyRulesFile, onRemoveRules, rulesFileName, onEditRules, comparisonOptions, onComparisonOptionsChange, mappings, partialHeaders }) => {
   const [filter, setFilter] = useState<ResultStatus | 'ALL'>('ALL');
   const [searchTerm, setSearchTerm] = useState('');
   const [descriptionSearchTerm, setDescriptionSearchTerm] = useState('');
@@ -247,10 +248,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, onToggleAggregate, i
                     <ViewColumnsIcon className="w-5 h-5" />
                     <span>Colonne</span>
                 </button>
-                <button onClick={onToggleAggregate} className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition">
-                    <span>{isAggregated ? 'Mostra Dettaglio Righe' : 'Aggrega per Codice'}</span>
-                </button>
-                <button onClick={() => exportToExcel(results, stats, isAggregated, totalDisplayValue)} className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+                <button onClick={() => exportToExcel(results, stats, isAggregated, totalDisplayValue, mappings, partialHeaders)} className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
                     <DownloadIcon className="w-5 h-5" />
                     <span>Esporta Excel</span>
                 </button>
