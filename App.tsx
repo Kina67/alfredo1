@@ -9,7 +9,7 @@ import FileDropzone from './components/FileDropzone';
 import MappingTable from './components/MappingTable';
 import ResultsView from './components/ResultsView';
 import RuleEditorModal from './components/RuleEditorModal';
-import { ArrowRightIcon, ArrowLeftIcon, SunIcon, MoonIcon } from './components/icons';
+import { ArrowRightIcon, ArrowLeftIcon, SunIcon, MoonIcon, XCircleIcon, ExclamationCircleIcon } from './components/icons';
 import UnifiedMappingView from './components/UnifiedMappingView';
 
 const autoMapColumns = (headers: string[]): Mapping => {
@@ -162,6 +162,7 @@ const App: React.FC = () => {
   const [rules, setRules] = useState<TransformationRule[] | null>(null);
   const [rulesFileDisplayName, setRulesFileDisplayName] = useState<string | null>(null);
   const [isRuleEditorOpen, setIsRuleEditorOpen] = useState(false);
+  const [isMappingWarningVisible, setIsMappingWarningVisible] = useState(false);
   
   const [skipRowsOriginal, setSkipRowsOriginal] = useState(0);
   const [skipRowsPartial, setSkipRowsPartial] = useState(0);
@@ -218,7 +219,8 @@ const App: React.FC = () => {
         setRules(null);
         setRulesFileDisplayName(null);
       }
-
+      
+      setIsMappingWarningVisible(true);
       setStep(AppStep.MAPPING);
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
@@ -403,6 +405,12 @@ const App: React.FC = () => {
     setError(null);
   };
 
+  const handleBackToMapping = () => {
+    setStep(AppStep.MAPPING);
+    setResults(null);
+    setError(null);
+  };
+
   const handleOriginalFilenameClick = () => {
     originalFileRef.current?.click();
   };
@@ -439,6 +447,7 @@ const App: React.FC = () => {
         setPartialData(newParsedData);
       }
       setMappings(newMappings);
+      setIsMappingWarningVisible(true);
       setStep(AppStep.MAPPING);
 
     } catch (err) {
@@ -504,6 +513,37 @@ const App: React.FC = () => {
         if (!originalData || !partialData) return null;
         return (
           <div className="space-y-6">
+            {isMappingWarningVisible && (
+              <div
+                onClick={() => setIsMappingWarningVisible(false)}
+                className="fixed inset-0 bg-slate-900 bg-opacity-60 z-50 flex items-start justify-center pt-20 transition-opacity duration-300"
+                aria-modal="true"
+                role="dialog"
+              >
+                <div
+                  onClick={(e) => e.stopPropagation()}
+                  className="relative bg-white dark:bg-slate-800 rounded-xl shadow-2xl max-w-2xl w-full mx-4 border-l-8 border-red-500"
+                  role="alert"
+                >
+                  <div className="flex items-start p-6">
+                    <ExclamationCircleIcon className="w-8 h-8 mr-4 flex-shrink-0 text-red-500" />
+                    <div className="flex-grow">
+                      <strong className="font-bold text-lg text-slate-800 dark:text-slate-100">Attenzione!</strong>
+                      <p className="mt-1 text-slate-600 dark:text-slate-300">
+                        Si raccomanda di controllare attentamente la corrispondenza delle colonne mappate automaticamente prima di procedere.
+                      </p>
+                    </div>
+                    <button
+                      onClick={() => setIsMappingWarningVisible(false)}
+                      className="ml-4 p-1 rounded-full text-slate-500 hover:bg-slate-200 dark:text-slate-400 dark:hover:bg-slate-700 transition-colors"
+                      aria-label="Chiudi avviso"
+                    >
+                      <XCircleIcon className="w-6 h-6" />
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
             <UnifiedMappingView
                 mappings={mappings}
                 originalHeaders={originalData.headers}
@@ -580,11 +620,6 @@ const App: React.FC = () => {
                         onSave={handleSaveRules}
                     />
                  )}
-                 <div className="mt-8 text-center">
-                    <button onClick={handleReset} className="px-6 py-2 bg-slate-600 text-white font-semibold rounded-lg hover:bg-slate-700 transition">
-                        Inizia una nuova analisi
-                    </button>
-                 </div>
             </div>
         )
       default:
@@ -610,26 +645,46 @@ const App: React.FC = () => {
       />
       <header className="bg-white dark:bg-slate-800/50 dark:backdrop-blur-sm shadow-sm sticky top-0 z-40 transition-colors duration-300">
         <div className="max-w-7xl mx-auto py-4 px-4 sm:px-6 lg:px-8 flex justify-between items-center gap-4">
-            <div className="flex-1 min-w-0">
-                <h1 className="text-2xl font-bold leading-tight text-slate-900 dark:text-slate-100 truncate">
-                Confronto Distinte Base (BOM)
-                </h1>
-                {originalFile && partialFile && step !== AppStep.UPLOAD && (
-                    <div className="text-sm text-slate-500 dark:text-slate-400 truncate flex items-center gap-2 flex-wrap">
+            <div className="flex items-center gap-4 flex-1 min-w-0">
+                <div className="flex-1 min-w-0">
+                    <h1 className="text-2xl font-bold leading-tight text-slate-900 dark:text-slate-100 truncate">
+                    Confronto Distinte Base (BOM)
+                    </h1>
+                    {originalFile && partialFile && step !== AppStep.UPLOAD && (
+                        <div className="text-sm text-slate-500 dark:text-slate-400 truncate flex items-center gap-2 flex-wrap">
+                            <button
+                              onClick={handleOriginalFilenameClick}
+                              className="hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-1 py-0.5"
+                              title={`Sostituisci: ${originalFile.name}`}
+                            >
+                                <span className="font-medium text-slate-600 dark:text-slate-300">Cliente:</span> {originalFile.name}
+                            </button>
+                            <span className="text-slate-400 dark:text-slate-500">vs</span>
+                            <button
+                              onClick={handlePartialFilenameClick}
+                              className="hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-1 py-0.5"
+                              title={`Sostituisci: ${partialFile.name}`}
+                            >
+                                <span className="font-medium text-slate-600 dark:text-slate-300">Gestionale:</span> {partialFile.name}
+                            </button>
+                        </div>
+                    )}
+                </div>
+                 {step === AppStep.RESULTS && (
+                    <div className="flex items-center gap-2 flex-shrink-0">
                         <button
-                          onClick={handleOriginalFilenameClick}
-                          className="hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-1 py-0.5"
-                          title={`Sostituisci: ${originalFile.name}`}
+                          onClick={handleBackToMapping}
+                          className="inline-flex items-center justify-center px-4 py-2 bg-slate-200 text-slate-800 dark:bg-slate-600 dark:text-slate-200 font-semibold rounded-lg hover:bg-slate-300 dark:hover:bg-slate-500 transition-colors duration-200 text-sm"
+                          title="Torna alla schermata di mappatura per modificare le colonne."
                         >
-                            <span className="font-medium text-slate-600 dark:text-slate-300">Cliente:</span> {originalFile.name}
+                            Correggi Mappatura
                         </button>
-                        <span className="text-slate-400 dark:text-slate-500">vs</span>
                         <button
-                          onClick={handlePartialFilenameClick}
-                          className="hover:underline focus:outline-none focus:ring-2 focus:ring-indigo-500 rounded px-1 py-0.5"
-                          title={`Sostituisci: ${partialFile.name}`}
+                            onClick={handleReset}
+                            className="inline-flex items-center justify-center px-4 py-2 bg-indigo-600 text-white font-semibold rounded-lg hover:bg-indigo-700 transition-colors duration-200 text-sm"
+                            title="Azzera l'applicazione e inizia un nuovo confronto."
                         >
-                            <span className="font-medium text-slate-600 dark:text-slate-300">Gestionale:</span> {partialFile.name}
+                            Inizia una nuova analisi
                         </button>
                     </div>
                 )}

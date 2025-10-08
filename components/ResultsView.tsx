@@ -244,19 +244,19 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, isAggregated, origin
         <div className="flex flex-wrap items-center justify-between gap-4">
             {/* Left Side: Action Buttons */}
             <div className="flex flex-wrap items-center gap-2">
-                <button onClick={() => setIsColumnWindowVisible(prev => !prev)} className="flex items-center space-x-2 bg-slate-500 text-white px-4 py-2 rounded-md hover:bg-slate-600 transition">
+                <button title="Mostra o nascondi le colonne nella tabella dei risultati." onClick={() => setIsColumnWindowVisible(prev => !prev)} className="flex items-center space-x-2 bg-slate-500 text-white px-4 py-2 rounded-md hover:bg-slate-600 transition">
                     <ViewColumnsIcon className="w-5 h-5" />
                     <span>Colonne</span>
                 </button>
-                <button onClick={() => exportToExcel(results, stats, isAggregated, totalDisplayValue, mappings, partialHeaders)} className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
+                <button title="Esporta tutti i risultati in un file Excel (.xlsx) con fogli separati per categoria." onClick={() => exportToExcel(results, stats, isAggregated, totalDisplayValue, mappings, partialHeaders)} className="flex items-center space-x-2 bg-green-600 text-white px-4 py-2 rounded-md hover:bg-green-700 transition">
                     <DownloadIcon className="w-5 h-5" />
                     <span>Esporta Excel</span>
                 </button>
-                <button onClick={() => exportToCsv(filteredResults, 'confronto_bom.csv', ',')} className="flex items-center space-x-2 bg-slate-600 text-white px-4 py-2 rounded-md hover:bg-slate-700 transition">
+                <button title="Esporta i risultati attualmente filtrati in un file CSV." onClick={() => exportToCsv(filteredResults, 'confronto_bom.csv', ',')} className="flex items-center space-x-2 bg-slate-600 text-white px-4 py-2 rounded-md hover:bg-slate-700 transition">
                     <DownloadIcon className="w-5 h-5" />
                     <span>Esporta CSV</span>
                 </button>
-                <label htmlFor="rules-file-upload" className="cursor-pointer inline-flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
+                <label title="Carica un file di regole (.xlsx) per unire o escludere codici prima del confronto." htmlFor="rules-file-upload" className="cursor-pointer inline-flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
                     <UploadIcon className="w-5 h-5" />
                     <span>{rulesFileName ? 'Sostituisci Regole' : 'Applica Regole'}</span>
                 </label>
@@ -282,6 +282,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, isAggregated, origin
                     value={searchTerm}
                     onChange={(e) => setSearchTerm(e.target.value)}
                     className="w-full sm:w-auto px-3 py-1.5 border border-transparent rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-slate-500 text-white placeholder-slate-200 dark:bg-slate-700 dark:text-slate-200 dark:placeholder-slate-400"
+                    title="Cerca un codice specifico sia nella distinta Cliente che in quella Gestionale."
                 />
                 <input
                     type="text"
@@ -289,11 +290,13 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, isAggregated, origin
                     value={descriptionSearchTerm}
                     onChange={(e) => setDescriptionSearchTerm(e.target.value)}
                     className="w-full sm:w-auto px-3 py-1.5 border border-transparent rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-slate-600 text-white placeholder-slate-300 dark:bg-slate-700 dark:text-slate-200 dark:placeholder-slate-400"
+                    title="Cerca una parola chiave nella descrizione sia della distinta Cliente che in quella Gestionale."
                 />
                 <select
                     value={filter}
                     onChange={(e) => setFilter(e.target.value as ResultStatus | 'ALL')}
                     className="w-full sm:w-auto px-3 py-1.5 border border-transparent rounded-md text-sm focus:ring-indigo-500 focus:border-indigo-500 bg-slate-700 text-white dark:bg-slate-600 dark:text-slate-200"
+                    title="Filtra i risultati per uno specifico esito del confronto."
                 >
                     <option value="ALL">Tutti gli esiti</option>
                     {Object.values(ResultStatus).map(status => (
@@ -306,7 +309,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, isAggregated, origin
           <div className="border-t border-slate-200 dark:border-slate-700 mt-4 pt-3 flex items-center gap-6 text-sm">
             <span className="font-semibold text-slate-700 dark:text-slate-200 shrink-0">Opzioni Confronto:</span>
             <div className="flex items-center gap-x-6 gap-y-2 flex-wrap">
-              <label className="flex items-center cursor-pointer">
+              <label className="flex items-center cursor-pointer" title="Se selezionato, il confronto ignorerà la colonna 'Revisione' e aggregherà le quantità per codici identici.">
                 <input
                   type="checkbox"
                   checked={comparisonOptions.ignoreRevision}
@@ -315,7 +318,7 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, isAggregated, origin
                 />
                 <span className="ml-2 text-slate-700 dark:text-slate-300">Ignora Revisioni</span>
               </label>
-              <label className={`flex items-center cursor-pointer ${!rulesFileName ? 'opacity-50 cursor-not-allowed' : ''}`}>
+              <label className={`flex items-center cursor-pointer ${!rulesFileName ? 'opacity-50 cursor-not-allowed' : ''}`} title="Se selezionato, disabilita temporaneamente le regole di trasformazione caricate.">
                 <input
                   type="checkbox"
                   checked={comparisonOptions.ignoreRules}
