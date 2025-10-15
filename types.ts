@@ -28,6 +28,7 @@ export interface Mapping {
   quantity: string | null;
   description: string | null;
   revision: string | null;
+  category: string | null;
 }
 
 export interface Mappings {
@@ -40,10 +41,12 @@ export interface ComparisonResult {
   partialQuantity: string | number | null;
   partialDescription: string | null;
   partialRevision: string | null;
+  partialCategory: string | null;
   originalCode: string | number | null;
   originalQuantity: string | number | null;
   originalDescription: string | null;
   originalRevision: string | null;
+  originalCategory: string | null;
   status: ResultStatus;
 }
 
@@ -57,6 +60,14 @@ export enum RuleType {
   EXCLUDE = 'ESCLUDI',
 }
 
+export enum ExcludeSubType {
+  CODE_EXACT = 'CODE_EXACT',
+  CODE_PREFIX = 'CODE_PREFIX',
+  DESCRIPTION_CONTAINS = 'DESCRIPTION_CONTAINS',
+  DESCRIPTION_PREFIX = 'DESCRIPTION_PREFIX',
+  CATEGORY_EXACT = 'CATEGORY_EXACT',
+}
+
 export type TransformationRule =
   | {
       type: RuleType.MERGE;
@@ -67,8 +78,7 @@ export type TransformationRule =
     }
   | {
       type: RuleType.EXCLUDE;
-      // Il valore grezzo dalla colonna 'Codici da unire' per una regola di esclusione.
-      // Può essere un codice, codici separati da '+', o una stringa di filtro per la descrizione.
+      subType: ExcludeSubType;
       value: string;
       enabled?: boolean;
     };

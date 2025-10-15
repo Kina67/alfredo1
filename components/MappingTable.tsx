@@ -9,6 +9,7 @@ const fieldColorClasses: Record<keyof Mapping, { th: string; td: string }> = {
   quantity: { th: 'bg-sky-200 text-sky-900 dark:bg-sky-900/50 dark:text-sky-200', td: 'bg-sky-100 dark:bg-sky-900/30' },
   description: { th: 'bg-teal-200 text-teal-900 dark:bg-teal-900/50 dark:text-teal-200', td: 'bg-teal-100 dark:bg-teal-900/30' },
   revision: { th: 'bg-amber-200 text-amber-900 dark:bg-amber-900/50 dark:text-amber-200', td: 'bg-amber-100 dark:bg-amber-900/30' },
+  category: { th: 'bg-rose-200 text-rose-900 dark:bg-rose-900/50 dark:text-rose-200', td: 'bg-rose-100 dark:bg-rose-900/30' },
 };
 
 interface MappingTableProps {

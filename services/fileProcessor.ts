@@ -1,5 +1,5 @@
 import type { ParsedFile, RowData, Mappings, ComparisonResult, TransformationRule } from '../types';
-import { ResultStatus, RuleType } from '../types';
+import { ResultStatus, RuleType, ExcludeSubType } from '../types';
 
 declare var XLSX: any;
 
@@ -16,26 +16,52 @@ export const parseRulesFile = async (file: File): Promise<TransformationRule[]> 
         const jsonData: RowData[] = XLSX.utils.sheet_to_json(worksheet, {
           defval: '',
         });
+        
+        const descriptionExclusionRegex = /(?:TUTTI\s+LE\s+)?DESCRIZIONI\s+CONTENENTI\s*"([^"]+)"/i;
+        const descriptionStartsWithRegex = /(?:TUTTI\s+LE\s+)?DESCRIZIONI\s+CHE\s+INIZIA(?:NO)?\s+(?:PER|CON)\s*"([^"]+)"/i;
+        const codeStartsWithRegex = /(?:TUTTI\s+I\s+)?CODIC[EI]\s+CHE\s+INIZIA(?:NO)?\s+(?:PER|CON)\s*"([^"]+)"/i;
+        const categoryExclusionRegex = /(?:TUTTE\s+LE\s+)?CATEGORIE\s+MERCEOLOGICHE\s+"([^"]+)"/i;
 
-        // FIX: Explicitly type the return of the map function to avoid type widening.
-        // This ensures the created objects conform to the TransformationRule union type,
-        // resolving both the assignment and the type predicate errors.
         const rules: TransformationRule[] = jsonData.map((row): TransformationRule | null => {
           const type = String(row['Tipo'] || '').trim().toUpperCase();
-          const codesOrDesc = String(row['Codici da unire'] || '').trim();
+          const codesOrValue = String(row['Codici da unire'] || row['Valore'] || '').trim();
           
-          if (!type || !codesOrDesc) {
+          if (!type || !codesOrValue) {
               return null;
           }
           
           if (type === RuleType.MERGE) {
-            const sourceCodes = codesOrDesc.split('+').map(c => c.trim()).filter(Boolean);
+            const sourceCodes = codesOrValue.split('+').map(c => c.trim()).filter(Boolean);
             const resultCode = String(row['Codice risultante']);
             const resultDescription = String(row['Descrizione risultante']);
             if (!resultCode || sourceCodes.length < 1) return null;
             return { type: RuleType.MERGE, sourceCodes, resultCode, resultDescription, enabled: true };
+          
           } else if (type === RuleType.EXCLUDE) {
-            return { type: RuleType.EXCLUDE, value: codesOrDesc, enabled: true };
+              const subTypeStr = String(row['Sotto-tipo'] || '').trim();
+              if (subTypeStr && Object.values(ExcludeSubType).includes(subTypeStr as ExcludeSubType)) {
+                   return { type: RuleType.EXCLUDE, subType: subTypeStr as ExcludeSubType, value: codesOrValue, enabled: true };
+              }
+
+              // Retro-compatibilità: Analizza la stringa per determinare il sotto-tipo
+              const descriptionMatch = codesOrValue.match(descriptionExclusionRegex);
+              if (descriptionMatch?.[1]) {
+                  return { type: RuleType.EXCLUDE, subType: ExcludeSubType.DESCRIPTION_CONTAINS, value: descriptionMatch[1], enabled: true };
+              }
+              const descriptionPrefixMatch = codesOrValue.match(descriptionStartsWithRegex);
+              if (descriptionPrefixMatch?.[1]) {
+                  return { type: RuleType.EXCLUDE, subType: ExcludeSubType.DESCRIPTION_PREFIX, value: descriptionPrefixMatch[1], enabled: true };
+              }
+              const codePrefixMatch = codesOrValue.match(codeStartsWithRegex);
+              if (codePrefixMatch?.[1]) {
+                  return { type: RuleType.EXCLUDE, subType: ExcludeSubType.CODE_PREFIX, value: codePrefixMatch[1], enabled: true };
+              }
+              const categoryMatch = codesOrValue.match(categoryExclusionRegex);
+              if (categoryMatch?.[1]) {
+                   return { type: RuleType.EXCLUDE, subType: ExcludeSubType.CATEGORY_EXACT, value: categoryMatch[1], enabled: true };
+              }
+              // Default a codici esatti
+              return { type: RuleType.EXCLUDE, subType: ExcludeSubType.CODE_EXACT, value: codesOrValue, enabled: true };
           }
           return null;
         }).filter((r): r is TransformationRule => r !== null);
@@ -62,8 +88,6 @@ export const parseFile = async (file: File, skipRows: number): Promise<ParsedFil
         const sheetName = workbook.SheetNames[0];
         const worksheet = workbook.Sheets[sheetName];
         
-        // FIX: The sheet_to_json with header: 1 returns an array of arrays, not an array of RowData objects.
-        // Changed type from RowData[] to any[][] to correctly reflect the library's output.
         const jsonData: any[][] = XLSX.utils.sheet_to_json(worksheet, {
           header: 1,
           defval: '',
@@ -114,7 +138,8 @@ export const applyTransformationRules = (
   rules: TransformationRule[],
   codeColumn: string,
   quantityColumn: string,
-  descriptionColumn: string | null
+  descriptionColumn: string | null,
+  categoryColumn: string | null
 ): ParsedFile => {
   let data = [...parsedFile.data];
   
@@ -125,40 +150,36 @@ export const applyTransformationRules = (
 
   // 1. Apply EXCLUDE rules
   if (excludeRules.length > 0) {
-    const descriptionExclusionKeywords: string[] = [];
-    const codeExclusionSet = new Set<string>();
-    const codeExclusionPrefixes: string[] = [];
-
-    const descriptionExclusionRegex = /(?:TUTTI\s+LE\s+)?DESCRIZIONI\s+CONTENENTI\s*"([^"]+)"/i;
-    const codeStartsWithRegex = /(?:TUTTI\s+I\s+)?CODICI\s+CHE\s+INIZIANO\s+PER\s*"([^"]+)"/i;
-
-    for (const rule of excludeRules) {
-      const descriptionMatch = rule.value.match(descriptionExclusionRegex);
-      const codePrefixMatch = rule.value.match(codeStartsWithRegex);
-
-      if (descriptionMatch && descriptionMatch[1]) {
-        descriptionExclusionKeywords.push(descriptionMatch[1].toUpperCase());
-      } else if (codePrefixMatch && codePrefixMatch[1]) {
-        codeExclusionPrefixes.push(codePrefixMatch[1]);
-      } else {
-        rule.value.split('+').forEach(c => codeExclusionSet.add(c.trim()));
-      }
-    }
-
     data = data.filter(row => {
-      const code = String(row[codeColumn]);
-      if (codeExclusionSet.has(code)) {
-        return false;
-      }
-      
-      if (codeExclusionPrefixes.some(prefix => code.startsWith(prefix))) {
-          return false;
-      }
-      
-      if (descriptionColumn && descriptionExclusionKeywords.length > 0) {
-        const description = String(row[descriptionColumn] || '').toUpperCase();
-        if (descriptionExclusionKeywords.some(keyword => description.includes(keyword))) {
-          return false;
+      for (const rule of excludeRules) {
+        switch (rule.subType) {
+          case ExcludeSubType.CODE_EXACT: {
+            const codeExclusionSet = new Set(rule.value.split('+').map(c => c.trim()));
+            if (codeExclusionSet.has(String(row[codeColumn]))) return false;
+            break;
+          }
+          case ExcludeSubType.CODE_PREFIX: {
+            if (String(row[codeColumn]).startsWith(rule.value)) return false;
+            break;
+          }
+          case ExcludeSubType.DESCRIPTION_CONTAINS: {
+            if (descriptionColumn && String(row[descriptionColumn] || '').toUpperCase().includes(rule.value.toUpperCase())) {
+              return false;
+            }
+            break;
+          }
+          case ExcludeSubType.DESCRIPTION_PREFIX: {
+            if (descriptionColumn && String(row[descriptionColumn] || '').toUpperCase().startsWith(rule.value.toUpperCase())) {
+              return false;
+            }
+            break;
+          }
+          case ExcludeSubType.CATEGORY_EXACT: {
+            if (categoryColumn && String(row[categoryColumn] || '').trim() === rule.value) {
+              return false;
+            }
+            break;
+          }
         }
       }
       return true;
@@ -181,9 +202,15 @@ export const applyTransformationRules = (
       });
       
       if (rowsToMerge.length > 0) {
+          const processedCodes = new Set<string>();
           const totalQuantity = rowsToMerge.reduce((sum, row) => {
+            const code = String(row[codeColumn]);
+            if (!processedCodes.has(code)) {
+              processedCodes.add(code);
               const quantity = normalizeQuantity(row[quantityColumn]);
               return sum + (quantity || 0);
+            }
+            return sum;
           }, 0);
 
           const newRow: RowData = {};
@@ -231,14 +258,15 @@ export const compareData = (
   };
 
   // 1. Build maps from partial data for efficient lookup.
-  const partialMapData = new Map<string, { quantity: number; description: string | null; revision: string | null }>();
-  const partialCodeToRevisions = new Map<string, { revision: string | null; description: string | null; quantity: number }[]>();
+  const partialMapData = new Map<string, { quantity: number; description: string | null; revision: string | null; category: string | null; }>();
+  const partialCodeToRevisions = new Map<string, { revision: string | null; description: string | null; quantity: number; category: string | null; }[]>();
 
   for (const row of partialData.data) {
     const code = String(row[partialMap.code]);
     const quantity = normalizeQuantity(row[partialMap.quantity]);
     const description = partialMap.description ? String(row[partialMap.description]) : null;
     const revision = partialMap.revision ? String(row[partialMap.revision]) : null;
+    const category = partialMap.category ? String(row[partialMap.category]) : null;
 
     if (code && quantity !== null) {
       // Aggregate by full key (code + revision OR just code)
@@ -247,7 +275,7 @@ export const compareData = (
         const existing = partialMapData.get(key)!;
         existing.quantity += quantity;
       } else {
-        partialMapData.set(key, { quantity, description, revision });
+        partialMapData.set(key, { quantity, description, revision, category });
       }
 
       // Store all revisions for a given code, aggregated (only needed if we are checking revisions)
@@ -260,7 +288,7 @@ export const compareData = (
           if (existingRevisionEntry) {
               existingRevisionEntry.quantity += quantity;
           } else {
-              revisionList.push({ revision, description, quantity });
+              revisionList.push({ revision, description, quantity, category });
           }
       }
     }
@@ -272,12 +300,13 @@ export const compareData = (
 
   if (aggregate) {
     // AGGREGATED PATH: Group original rows, but decide to show aggregated or detailed view based on quantity match.
-    const originalAggregatedData = new Map<string, { quantity: number; description: string | null; revision: string | null; rows: RowData[] }>();
+    const originalAggregatedData = new Map<string, { quantity: number; description: string | null; revision: string | null; category: string | null; rows: RowData[] }>();
     for (const row of originalData.data) {
         const code = String(row[originalMap.code!]);
         const quantity = normalizeQuantity(row[originalMap.quantity!]);
         const description = originalMap.description ? String(row[originalMap.description]) : null;
         const revision = originalMap.revision ? String(row[originalMap.revision!]) : null;
+        const category = originalMap.category ? String(row[originalMap.category!]) : null;
         
         if(code) {
             const key = getKey(code, revision);
@@ -286,7 +315,7 @@ export const compareData = (
                 if(quantity !== null) existing.quantity += quantity;
                 existing.rows.push(row);
             } else {
-                originalAggregatedData.set(key, { quantity: quantity ?? 0, description, revision, rows: [row] });
+                originalAggregatedData.set(key, { quantity: quantity ?? 0, description, revision, category, rows: [row] });
             }
         }
     }
@@ -297,7 +326,7 @@ export const compareData = (
 
         if (exactMatch) {
             processedPartialKeysForMainLoop.add(key);
-            const { quantity: partialQuantity, description: partialDescription, revision: partialRevision } = exactMatch;
+            const { quantity: partialQuantity, description: partialDescription, revision: partialRevision, category: partialCategory } = exactMatch;
             const quantityDiff = Math.abs(aggregatedInfo.quantity - partialQuantity);
             const areQuantitiesEqual = quantityDiff < 1e-6;
 
@@ -308,10 +337,12 @@ export const compareData = (
                     originalQuantity: aggregatedInfo.quantity,
                     originalDescription: aggregatedInfo.description,
                     originalRevision: aggregatedInfo.revision,
+                    originalCategory: aggregatedInfo.category,
                     partialCode: originalCode, 
                     partialQuantity, 
                     partialDescription, 
                     partialRevision, 
+                    partialCategory,
                     status: ResultStatus.QUANTITY_EQUAL,
                 });
             } else {
@@ -323,6 +354,7 @@ export const compareData = (
                     const oQty = normalizeQuantity(oQtyRaw);
                     const oDesc = originalMap.description ? String(originalRow[originalMap.description!]) : null;
                     const oRev = originalMap.revision ? String(originalRow[originalMap.revision!]) : null;
+                    const oCat = originalMap.category ? String(originalRow[originalMap.category!]) : null;
 
                     let status: ResultStatus;
                     if (oQty === null) {
@@ -340,10 +372,12 @@ export const compareData = (
                         originalQuantity: oQty === null ? String(oQtyRaw) : oQty, 
                         originalDescription: oDesc, 
                         originalRevision: oRev,
+                        originalCategory: oCat,
                         partialCode: originalCode, 
                         partialQuantity, 
                         partialDescription, 
                         partialRevision,
+                        partialCategory,
                         status: status,
                     });
                 });
@@ -357,10 +391,12 @@ export const compareData = (
                     originalQuantity: aggregatedInfo.quantity,
                     originalDescription: aggregatedInfo.description,
                     originalRevision: aggregatedInfo.revision,
+                    originalCategory: aggregatedInfo.category,
                     partialCode: originalCode,
                     partialQuantity: firstOtherRevision.quantity,
                     partialDescription: firstOtherRevision.description,
                     partialRevision: firstOtherRevision.revision,
+                    partialCategory: firstOtherRevision.category,
                     status: ResultStatus.REVISION_DIFFERENT,
                 });
                 otherRevisions.forEach(rev => processedPartialKeysForMainLoop.add(getKey(originalCode, rev.revision)));
@@ -376,10 +412,8 @@ export const compareData = (
                         originalQuantity: totalQuantity,
                         originalDescription: aggregatedInfo.description, // Use description from the aggregated group
                         originalRevision: aggregatedInfo.revision,     // Use revision from the aggregated group
-                        partialCode: null,
-                        partialQuantity: null,
-                        partialDescription: null,
-                        partialRevision: null,
+                        originalCategory: aggregatedInfo.category,
+                        partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null, partialCategory: null,
                         status: ResultStatus.ABSENT,
                     });
                 }
@@ -390,7 +424,8 @@ export const compareData = (
                         originalQuantity: String(row[originalMap.quantity!]), 
                         originalDescription: originalMap.description ? String(row[originalMap.description!]) : null, 
                         originalRevision: originalMap.revision ? String(row[originalMap.revision!]) : null,
-                        partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null,
+                        originalCategory: originalMap.category ? String(row[originalMap.category!]) : null,
+                        partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null, partialCategory: null,
                         status: ResultStatus.INVALID_QUANTITY,
                     });
                 });
@@ -407,13 +442,14 @@ export const compareData = (
         const originalQuantity = normalizeQuantity(originalQuantityRaw);
         const originalDescription = originalMap.description ? String(originalRow[originalMap.description!]) : null;
         const originalRevision = originalMap.revision ? String(originalRow[originalMap.revision!]) : null;
+        const originalCategory = originalMap.category ? String(originalRow[originalMap.category!]) : null;
 
         if (!originalCode) continue;
 
         if (originalQuantity === null) {
           resultsFromOriginal.push({
-            originalCode, originalQuantity: String(originalQuantityRaw), originalDescription, originalRevision,
-            partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null,
+            originalCode, originalQuantity: String(originalQuantityRaw), originalDescription, originalRevision, originalCategory,
+            partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null, partialCategory: null,
             status: ResultStatus.INVALID_QUANTITY,
           });
           continue;
@@ -424,14 +460,14 @@ export const compareData = (
 
         if (exactMatch) {
           processedPartialKeysForMainLoop.add(key);
-          const { quantity: partialQuantity, description: partialDescription, revision: partialRevision } = exactMatch;
+          const { quantity: partialQuantity, description: partialDescription, revision: partialRevision, category: partialCategory } = exactMatch;
           
           const quantityDiff = Math.abs(originalQuantity - partialQuantity);
           const status = (quantityDiff < 1e-6) ? ResultStatus.QUANTITY_EQUAL : ResultStatus.QUANTITY_DIFFERENT;
 
           resultsFromOriginal.push({
-            originalCode, originalQuantity, originalDescription, originalRevision,
-            partialCode: originalCode, partialQuantity, partialDescription, partialRevision,
+            originalCode, originalQuantity, originalDescription, originalRevision, originalCategory,
+            partialCode: originalCode, partialQuantity, partialDescription, partialRevision, partialCategory,
             status,
           });
         } else {
@@ -440,11 +476,12 @@ export const compareData = (
           if (otherRevisions && otherRevisions.length > 0) {
             const firstOtherRevision = otherRevisions[0];
             resultsFromOriginal.push({
-              originalCode, originalQuantity, originalDescription, originalRevision,
+              originalCode, originalQuantity, originalDescription, originalRevision, originalCategory,
               partialCode: originalCode,
               partialQuantity: firstOtherRevision.quantity,
               partialDescription: firstOtherRevision.description,
               partialRevision: firstOtherRevision.revision,
+              partialCategory: firstOtherRevision.category,
               status: ResultStatus.REVISION_DIFFERENT,
             });
 
@@ -473,16 +510,15 @@ export const compareData = (
         const originalCode = String(firstRow[originalMap.code!]);
         const originalDescription = originalMap.description ? String(firstRow[originalMap.description!]) : null;
         const originalRevision = originalMap.revision ? String(firstRow[originalMap.revision!]) : null;
+        const originalCategory = originalMap.category ? String(firstRow[originalMap.category!]) : null;
 
         resultsFromOriginal.push({
             originalCode,
             originalQuantity: quantity,
             originalDescription,
             originalRevision,
-            partialCode: null,
-            partialQuantity: null,
-            partialDescription: null,
-            partialRevision: null,
+            originalCategory,
+            partialCode: null, partialQuantity: null, partialDescription: null, partialRevision: null, partialCategory: null,
             status: ResultStatus.ABSENT,
         });
     }
@@ -519,11 +555,12 @@ export const compareData = (
     if (!definitiveProcessedPartialKeys.has(key)) { // Use the definitive set for this check
       const [code] = key.split('::');
       resultsFromPartial.push({
-          originalCode: null, originalQuantity: null, originalDescription: null, originalRevision: null,
+          originalCode: null, originalQuantity: null, originalDescription: null, originalRevision: null, originalCategory: null,
           partialCode: code,
           partialQuantity: data.quantity,
           partialDescription: data.description,
           partialRevision: data.revision,
+          partialCategory: data.category,
           status: ResultStatus.ABSENT_IN_ORIGINAL,
       });
     }

@@ -56,12 +56,18 @@ const autoMapColumns = (headers: string[]): Mapping => {
         ['rev', 'revisione', 'revision'],
         ['Rev', 'Revisione']
     );
+    
+    const category = findHeader(
+        ['categoria', 'cat.', 'gruppo', 'merceologica'],
+        ['Categoria Merceologica', 'Categoria']
+    );
 
     return {
         code,
         quantity,
         description,
         revision,
+        category,
     };
 };
 
@@ -259,14 +265,16 @@ const App: React.FC = () => {
               currentRules,
               currentMappings.original.code!,
               currentMappings.original.quantity!,
-              currentMappings.original.description
+              currentMappings.original.description,
+              currentMappings.original.category
           );
           processedPartialData = applyTransformationRules(
               currentPartialData,
               currentRules,
               currentMappings.partial.code!,
               currentMappings.partial.quantity!,
-              currentMappings.partial.description
+              currentMappings.partial.description,
+              currentMappings.partial.category
           );
       }
 

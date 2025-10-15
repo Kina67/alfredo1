@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import type { TransformationRule } from '../types';
-import { RuleType } from '../types';
+import { RuleType, ExcludeSubType } from '../types';
 import { XCircleIcon } from './icons';
 
 interface RuleEditorModalProps {
@@ -9,6 +9,15 @@ interface RuleEditorModalProps {
   onClose: () => void;
   onSave: (updatedRules: TransformationRule[]) => void;
 }
+
+const excludeSubTypeOptions: Record<ExcludeSubType, { label: string; placeholder: string }> = {
+    [ExcludeSubType.CODE_EXACT]: { label: 'Escludi Codici Esatti', placeholder: 'Es: 12345 + 67890' },
+    [ExcludeSubType.CODE_PREFIX]: { label: 'Escludi Codici che iniziano per', placeholder: 'Es: K' },
+    [ExcludeSubType.DESCRIPTION_CONTAINS]: { label: 'Escludi Descrizioni contenenti', placeholder: 'Es: VITE' },
+    [ExcludeSubType.DESCRIPTION_PREFIX]: { label: 'Escludi Descrizioni che iniziano per', placeholder: 'Es: KIT' },
+    [ExcludeSubType.CATEGORY_EXACT]: { label: 'Escludi Categoria Merceologica', placeholder: 'Es: Bulloneria' },
+};
+
 
 const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClose, onSave }) => {
   const [editableRules, setEditableRules] = useState<TransformationRule[]>([]);
@@ -48,7 +57,7 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
     if (type === RuleType.MERGE) {
       newRule = { type: RuleType.MERGE, sourceCodes: [], resultCode: '', resultDescription: '', enabled: true };
     } else {
-      newRule = { type: RuleType.EXCLUDE, value: '', enabled: true };
+      newRule = { type: RuleType.EXCLUDE, subType: ExcludeSubType.CODE_EXACT, value: '', enabled: true };
     }
     setEditableRules(currentRules => [...currentRules, newRule]);
   };
@@ -62,6 +71,11 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
             return rule.value.trim() !== '';
         }
         return false;
+    }).map(rule => {
+        if (rule.type === RuleType.MERGE) {
+            rule.sourceCodes = rule.sourceCodes.map(c => c.trim()).filter(Boolean);
+        }
+        return rule;
     });
     onSave(cleanedRules);
   };
@@ -112,7 +126,7 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
                         value={rule.sourceCodes.join(' + ')}
                         onChange={(e) => handleRuleChange(index, { ...rule, sourceCodes: e.target.value.split('+').map(c => c.trim()) })}
                         className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
-                        placeholder="Es: 12345 + 67890"
+                        placeholder="Es: 2099103 + 2099102"
                       />
                     </div>
                     <div>
@@ -122,6 +136,7 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
                         value={rule.resultCode}
                         onChange={(e) => handleRuleChange(index, { ...rule, resultCode: e.target.value })}
                         className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
+                        placeholder="Es: CPM0300"
                       />
                     </div>
                   </div>
@@ -132,21 +147,36 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
                         value={rule.resultDescription}
                         onChange={(e) => handleRuleChange(index, { ...rule, resultDescription: e.target.value })}
                         className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
+                        placeholder="Es: Prodotto combinato (CPM0300)"
                       />
                     </div>
                 </div>
               ) : (
                 <div className="space-y-3">
                    <span className="font-semibold text-orange-700 bg-orange-100 dark:bg-orange-900/50 dark:text-orange-300 px-2 py-1 rounded-md text-sm">{RuleType.EXCLUDE}</span>
-                   <div>
-                        <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Valore da escludere</label>
-                        <input
-                            type="text"
-                            value={rule.value}
-                            onChange={(e) => handleRuleChange(index, { ...rule, value: e.target.value })}
-                            className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
-                            placeholder='Es: CODICI CHE INIZIANO PER "K" | 98765 | DESCRIZIONI CONTENENTI "VITE"'
-                        />
+                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4 items-end">
+                        <div>
+                            <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">Tipo di esclusione</label>
+                            <select
+                                value={rule.subType}
+                                onChange={(e) => handleRuleChange(index, { ...rule, subType: e.target.value as ExcludeSubType, value: '' })}
+                                className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200"
+                            >
+                                {Object.entries(excludeSubTypeOptions).map(([key, { label }]) => (
+                                    <option key={key} value={key}>{label}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                             <label className="block text-sm font-medium text-slate-600 dark:text-slate-300">{excludeSubTypeOptions[rule.subType].label}</label>
+                            <input
+                                type="text"
+                                value={rule.value}
+                                onChange={(e) => handleRuleChange(index, { ...rule, value: e.target.value })}
+                                className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
+                                placeholder={excludeSubTypeOptions[rule.subType].placeholder}
+                            />
+                        </div>
                    </div>
                 </div>
               )}
