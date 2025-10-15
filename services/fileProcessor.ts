@@ -127,13 +127,19 @@ export const applyTransformationRules = (
   if (excludeRules.length > 0) {
     const descriptionExclusionKeywords: string[] = [];
     const codeExclusionSet = new Set<string>();
+    const codeExclusionPrefixes: string[] = [];
 
     const descriptionExclusionRegex = /(?:TUTTI\s+LE\s+)?DESCRIZIONI\s+CONTENENTI\s*"([^"]+)"/i;
+    const codeStartsWithRegex = /(?:TUTTI\s+I\s+)?CODICI\s+CHE\s+INIZIANO\s+PER\s*"([^"]+)"/i;
 
     for (const rule of excludeRules) {
-      const match = rule.value.match(descriptionExclusionRegex);
-      if (match && match[1]) {
-        descriptionExclusionKeywords.push(match[1].toUpperCase());
+      const descriptionMatch = rule.value.match(descriptionExclusionRegex);
+      const codePrefixMatch = rule.value.match(codeStartsWithRegex);
+
+      if (descriptionMatch && descriptionMatch[1]) {
+        descriptionExclusionKeywords.push(descriptionMatch[1].toUpperCase());
+      } else if (codePrefixMatch && codePrefixMatch[1]) {
+        codeExclusionPrefixes.push(codePrefixMatch[1]);
       } else {
         rule.value.split('+').forEach(c => codeExclusionSet.add(c.trim()));
       }
@@ -143,6 +149,10 @@ export const applyTransformationRules = (
       const code = String(row[codeColumn]);
       if (codeExclusionSet.has(code)) {
         return false;
+      }
+      
+      if (codeExclusionPrefixes.some(prefix => code.startsWith(prefix))) {
+          return false;
       }
       
       if (descriptionColumn && descriptionExclusionKeywords.length > 0) {

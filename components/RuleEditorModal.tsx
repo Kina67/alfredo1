@@ -145,7 +145,7 @@ const RuleEditorModal: React.FC<RuleEditorModalProps> = ({ isOpen, rules, onClos
                             value={rule.value}
                             onChange={(e) => handleRuleChange(index, { ...rule, value: e.target.value })}
                             className="mt-1 block w-full p-2 border border-slate-300 dark:border-slate-600 rounded-md text-sm bg-white text-slate-900 dark:bg-slate-700 dark:text-slate-200 placeholder-slate-500 dark:placeholder-slate-400"
-                            placeholder='Es: TUTTI LE DESCRIZIONI CONTENENTI "SUPPORTO" oppure 98765'
+                            placeholder='Es: CODICI CHE INIZIANO PER "K" | 98765 | DESCRIZIONI CONTENENTI "VITE"'
                         />
                    </div>
                 </div>

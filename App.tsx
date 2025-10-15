@@ -612,14 +612,12 @@ const App: React.FC = () => {
                     mappings={mappings}
                     partialHeaders={partialData.headers}
                  />
-                 {rules !== null && (
-                    <RuleEditorModal
-                        isOpen={isRuleEditorOpen}
-                        rules={rules}
-                        onClose={() => setIsRuleEditorOpen(false)}
-                        onSave={handleSaveRules}
-                    />
-                 )}
+                <RuleEditorModal
+                    isOpen={isRuleEditorOpen}
+                    rules={rules || []}
+                    onClose={() => setIsRuleEditorOpen(false)}
+                    onSave={handleSaveRules}
+                />
             </div>
         )
       default:

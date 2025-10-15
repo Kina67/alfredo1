@@ -1,5 +1,5 @@
 {
-  "name": "Distinte Base (BOM) Rev_11_SOLO MODALITA AGGREGATA_info su pulsanti",
+  "name": "Distinte Base (BOM) Rev_12_Mod_federico",
   "description": "An application to compare two Bill of Materials (BOM) files. Users can upload an original and a partial BOM, map relevant columns, and get a detailed comparison of item codes and quantities, including items missing from the original and quantity mismatches.",
   "requestFramePermissions": []
 }

@@ -256,9 +256,13 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, isAggregated, origin
                     <DownloadIcon className="w-5 h-5" />
                     <span>Esporta CSV</span>
                 </button>
+                <button onClick={onEditRules} className="flex items-center space-x-2 bg-purple-600 text-white px-4 py-2 rounded-md hover:bg-purple-700 transition" title="Apre una finestra per creare, modificare o eliminare regole di trasformazione senza caricare un file.">
+                    <EditIcon className="w-5 h-5" />
+                    <span>Crea/Modifica Regole</span>
+                </button>
                 <label title="Carica un file di regole (.xlsx) per unire o escludere codici prima del confronto." htmlFor="rules-file-upload" className="cursor-pointer inline-flex items-center space-x-2 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 transition">
                     <UploadIcon className="w-5 h-5" />
-                    <span>{rulesFileName ? 'Sostituisci Regole' : 'Applica Regole'}</span>
+                    <span>{rulesFileName ? 'Sostituisci da File' : 'Carica da File'}</span>
                 </label>
                 <input
                     id="rules-file-upload"
@@ -338,14 +342,6 @@ const ResultsView: React.FC<ResultsViewProps> = ({ results, isAggregated, origin
                     <span>Regole applicate: <strong>{rulesFileName}</strong></span>
                 </div>
                 <div className="flex items-center gap-2">
-                    <button
-                      onClick={onEditRules}
-                      className="p-1 rounded-full hover:bg-slate-200 dark:hover:bg-slate-600 transition-colors"
-                      aria-label="Modifica regole"
-                      title="Modifica regole"
-                    >
-                      <EditIcon className="w-5 h-5 text-slate-600 dark:text-slate-300 hover:text-slate-800 dark:hover:text-slate-100" />
-                    </button>
                     <button
                       onClick={onRemoveRules}
                       className="p-1 rounded-full hover:bg-red-100 dark:hover:bg-red-900/30 transition-colors"
